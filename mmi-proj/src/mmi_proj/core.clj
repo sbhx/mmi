@@ -1,4 +1,3 @@
-
 (ns mmi-proj.core
   (:require quil.core
             quil.helpers.drawing
@@ -61,7 +60,7 @@
 
 (defn construct-filename-for-query [query]
   (str
-   "/home/we/projects/mmi/data/"
+   "/home/we/workspace/data/urls/"
    (clojure.string/replace (apply str query) #"\[|\]|:|\"| " "")
    ".clj")
   )
@@ -73,10 +72,10 @@
         (spit
          filename
          (str "'" (pr-str {:query query :results-urls results-urls})))
-        (println (str "wrote " (count results-urls) " urls to" filename))
+        ;;(println (str "wrote " (count results-urls) " urls to" filename))
         results-urls)
       (do
-        (println (str "already exists: " filename))
+        ;;(println (str "already exists: " filename))
         (:results-urls (load-file filename))))))
 
 (defn construct-day-yeshuv-query [date yeshuv]
@@ -99,131 +98,156 @@
       (construct-day-query date)
       (construct-day-yeshuv-query date yeshuv))))
 
-(defn -main []
-  (doall
-   (pmap
-    get-and-save-or-load-results-urls 
-    (construct-queries))
-   ;;(shutdown-agents)
+
+(defn get-tables-from-results-url
+  [url]
+  (let [html (fetch-url url)]
+    (html/select
+     html
+     [ (html/attr= :class "tblSmallText tblLowLines")])))
+
+(defn get-regular-data-from-table-or-tables [table-or-tables]
+  ;; Note that it works when the input is a seq of more than one
+  ;; table.
+  ;; TODO: Understend precisely how it works.
+  (map #(map html/text %)
+       (map #(html/select % [[:td
+                              (html/but (html/has-class "lightGrey"))]])
+            (html/select table-or-tables [:tr]))))
+
+
+(defn get-all-data-from-table-or-tables [table-or-tables]
+  ;; Note that it works when the input is a seq of more than one
+  ;; table.
+  ;; TODO: Understend precisely how it works.
+  (map #(map html/text %)
+       (map #(html/select % [[:td]])
+            (html/select table-or-tables [:tr]))))
+
+
+(defn string-to-keyword
+  "This function takes a string and returns a normalized keyword."
+  [input]
+  (-> input
+      string/lower-case
+      (string/replace \space \-)
+      keyword))
+
+(defn remove-quotes-tabs-and-newlines [s]
+  (clojure.string/replace
+   (clojure.string/replace
+   s
+   #"[\"|#]" "")
+   #"[\t|\n]" ""))
+
+(defn is-legitimate-pair? [k v]
+  (and
+   (not (or (= k "o   o") (= v "o   o"))) ;; niether k nor v is underscore
+   (re-matches #"o [אבגדהוזחטיכלמנסעפצקרשת].* o" k) ;; k has a Hebrew letter
    ))
 
+(defn make-even-clean-and-make-keys-keywords [string-cleaner todo & already-done]
+  (if (> (length todo) 1) ; a remainder from division into pairs
+                                        ; would be neglected
+    (let [ rtodo (rest todo)]
+      (recur
+       string-cleaner
+       (rest rtodo)
+       (concat
+        already-done
+        (if (is-legitimate-pair? (first todo) (first rtodo))
+          ;; add to already-done the cleaned and keyworded pair
+          [(string-to-keyword (string-cleaner (first todo)))
+           (string-cleaner (first rtodo))
+           ]
+          ;; add nothing
+          []
+          ))))
+    already-done))
+
+(defn put-Latin-around-Hebrew [s]
+  (if (re-matches #".*[אבגדהוזחטיכלמנסעפצקרשת].*" s)
+    (str "o " s " o")
+    s))
+
+(defn prepare-for-map [strings]
+  (->> strings
+       reverse
+       (map put-Latin-around-Hebrew)
+       (make-even-clean-and-make-keys-keywords remove-quotes-tabs-and-newlines)
+       ))
+
+(defn prepare-for-map2 [strings]
+  (->> strings
+       reverse
+       (map put-Latin-around-Hebrew)
+       ))
+
+(defn construct-map1-of-results [results-url]
+  (->> results-url
+       get-tables-from-results-url
+       get-regular-data-from-table-or-tables
+       (map prepare-for-map)
+       (reduce concat)
+       (apply hash-map)))
+
+(defn construct-map2-of-results [results-url]
+  (let [parts (->> results-url
+                   get-tables-from-results-url
+                   get-all-data-from-table-or-tables
+                   (map prepare-for-map2)
+                   vec
+                   )
+        gush-idx (first (filter
+                         #(= (second ( parts %)) "o גוש o")
+                         (range (count parts))))
+        gush-data (-> gush-idx inc parts rest)
+        ]
+    {:o-גוש-o (first gush-data)
+     :o-חלקות-o (second gush-data)}
+    ))
+
+(defn construct-map-of-results [results-url]
+  (do
+    (println results-url)
+    (-> (sorted-map)
+        (into (construct-map1-of-results results-url))
+        (into (construct-map2-of-results results-url))
+        )))
+
+(defn construct-filename-for-results-url [results-url]
+  (str
+   "/home/we/workspace/data/maps/"
+   (clojure.string/replace results-url #"[/|:|\?|\&]" ".")
+   ".clj"))
+
+;; TODO: Generalize this fn and the very similar one above.
+(defn get-and-save-or-load-map-of-results-urls [results-url]
+  (let [filename (construct-filename-for-results-url results-url)]
+    (if (not (.exists (java.io.File. filename)))
+      (let [map-of-results (construct-map-of-results results-url)]
+        (spit
+         filename
+         (str "'" (pr-str {:results-url results-url :map-of-results map-of-results})))
+        (println (str "wrote to " filename))
+        map-of-results)
+      (do
+        (println (str "already exists: " filename))
+        (:map-of-results (load-file filename))))))
 
 
-;; (defn get-tables-from-results-url
-;;   [url]
-;;   (let [html (fetch-url url)]
-;;     (html/select
-;;      html
-;;      [ (html/attr= :class "tblSmallText tblLowLines")])))
-
-;; (defn get-regular-data-from-table-or-tables [table-or-tables]
-;;   ;; Note that it works when the input is a seq of more than one
-;;   ;; table.
-;;   ;; TODO: Understend precisely how it works.
-;;   (map #(map html/text %)
-;;        (map #(html/select % [[:td
-;;                               (html/but (html/has-class "lightGrey"))]])
-;;             (html/select table-or-tables [:tr]))))
+(defn -main []
+  (let [ results-urls
+        (flatten
+         (doall ( pmap
+                  get-and-save-or-load-results-urls 
+                  (construct-queries))))]
+    (doall (pmap
+            get-and-save-or-load-map-of-results-urls
+            results-urls))))
 
 
-;; (defn get-all-data-from-table-or-tables [table-or-tables]
-;;   ;; Note that it works when the input is a seq of more than one
-;;   ;; table.
-;;   ;; TODO: Understend precisely how it works.
-;;   (map #(map html/text %)
-;;        (map #(html/select % [[:td]])
-;;             (html/select table-or-tables [:tr]))))
 
-
-;; (defn string-to-keyword
-;;   "This takes a string and returns a normalized keyword."
-;;   [input]
-;;   (-> input
-;;       string/lower-case
-;;       (string/replace \space \-)
-;;       keyword))
-
-;; (defn remove-quotes-tabs-and-newlines [s]
-;;   (clojure.string/replace
-;;    (clojure.string/replace
-;;    s
-;;    #"[\"|#]" "")
-;;    #"[\t|\n]" ""))
-
-;; (defn is-legitimate-pair? [k v]
-;;   (and
-;;    (not (or (= k "o   o") (= v "o   o"))) ;; niether k nor v is underscore
-;;    (re-matches #"o [אבגדהוזחטיכלמנסעפצקרשת].* o" k) ;; k has a Hebrew letter
-;;    ))
-
-;; (defn make-even-clean-and-make-keys-keywords [string-cleaner todo & already-done]
-;;   (if (> (length todo) 1) ; a remainder from division into pairs
-;;                                         ; would be neglected
-;;     (let [ rtodo (rest todo)]
-;;       (recur
-;;        string-cleaner
-;;        (rest rtodo)
-;;        (concat
-;;         already-done
-;;         (if (is-legitimate-pair? (first todo) (first rtodo))
-;;           ;; add to already-done the cleaned and keyworded pair
-;;           [(string-to-keyword (string-cleaner (first todo)))
-;;            (string-cleaner (first rtodo))
-;;            ]
-;;           ;; add nothing
-;;           []
-;;           ))))
-;;     already-done))
-
-;; (defn put-Latin-around-Hebrew [s]
-;;   (if (re-matches #".*[אבגדהוזחטיכלמנסעפצקרשת].*" s)
-;;     (str "o " s " o")
-;;     s))
-
-;; (defn prepare-for-map [strings]
-;;   (->> strings
-;;        reverse
-;;        (map put-Latin-around-Hebrew)
-;;        (make-even-clean-and-make-keys-keywords remove-quotes-tabs-and-newlines)
-;;        ))
-
-;; (defn prepare-for-map2 [strings]
-;;   (->> strings
-;;        reverse
-;;        (map put-Latin-around-Hebrew)
-;;        ))
-
-;; (defn construct-map1-of-results [results-url]
-;;   (->> results-url
-;;        get-tables-from-results-url
-;;        get-regular-data-from-table-or-tables
-;;        (map prepare-for-map)
-;;        (reduce concat)
-;;        (apply hash-map)))
-
-;; (defn construct-map2-of-results [results-url]
-;;   (let [parts (->> results-url
-;;                    get-tables-from-results-url
-;;                    get-all-data-from-table-or-tables
-;;                    (map prepare-for-map2)
-;;                    vec
-;;                    )
-;;         gush-idx (first (filter
-;;                          #(= (second ( parts %)) "o גוש o")
-;;                          (range (count parts))))
-;;         gush-data (-> gush-idx inc parts rest)
-;;         ]
-;;     {:o-גוש-o (first gush-data)
-;;      :o-חלקות-o (second gush-data)}
-;;     ))
-
-;; (defn construct-map-of-results [results-url]
-;;   (do
-;;     (println results-url)
-;;     (-> (sorted-map)
-;;         (into (construct-map1-of-results results-url))
-;;         (into (construct-map2-of-results results-url))
-;;         )))
 
 ;; (defn organize-results-maps-by-url [query]
 ;;   (->>
