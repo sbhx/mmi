@@ -17,5 +17,6 @@
                  [me.raynes/fs "1.4.4"]
                  [net.mikera/core.matrix "0.7.2"]]
   :main mmi-proj.core
+  :jvm-opts ["-Xmx6g"]
   )
 
