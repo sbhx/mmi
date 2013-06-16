@@ -13,6 +13,7 @@
 (require 'clojure.core.matrix.operators)
 (use '[clojure.java.shell :only [sh]])
 (import [java.net URL])
+(require 'clojure.data.csv)
 
 
 ;;;;;;;;
@@ -257,15 +258,23 @@
         maps-of-results (doall (pmap
                                 get-and-save-or-load-map-of-results
                                 results-urls))
+        results-col-names
+        (->> maps-of-results (map keys) (map #(apply hash-set %)) (reduce clojure.set/union))
+        dataset-of-results
+        (dataset results-col-names maps-of-results)
         ]
     ;; (spit "/home/we/workspace/data/mmi/maps.clj"
-    ;;       (str "'" (pr-str maps-of-results)) )
-    (println "a")
+    ;;        (str "'" (pr-str maps-of-results)) )
+    dataset-of-results
     ) )
 
-(def maps-of-results
-  (load-file "/home/we/workspace/data/mmi/maps.clj"))
+(def d
+  ;;(load-file "/home/we/workspace/data/mmi/maps.clj")
+  (-main)
+  )
 
+(with-open [out-file (clojure.java.io/writer "/home/we/workspace/data/dataset.csv")]
+  (clojure.data.csv/write-csv out-file d))
 
 ;; (defn organize-results-maps-by-url [query]
 ;;   (->>
@@ -283,10 +292,6 @@
 ;;             :results-map
 ;;             })))
 
-
-
-
-
 ;; (defn construct-and-save-map-of-results [results-url]
 ;;   (do
 ;;     (println results-url)
@@ -296,8 +301,6 @@
 ;;                           )
 ;;           outfilename (str "/home/we/projects/proj1/data/results-maps/" (clojure.string/replace url #":|\?|\&|/" "-") ".clj")]
 ;;       (if (.exists (java.io.File. outfilename))
-        
-
 ;;         )
 ;;       (spit outfilename results-map)
 ;;       (println (str "saved results map for " url " to " outfilename))
@@ -327,26 +330,26 @@
 ;;     maps))
 
 
-;; (def results-col-names
-;;   (->> {:yeshuv 5000}
-;;        get-results-urls
-;;                                         ;(take 10)
-;;        (map #(construct-map-of-results
-;;               {}
-;;               ;; {:yeshuv 5000
-;;               ;;  :yeud 2
-;;               ;;  :from-date 2003
-;;               ;;  :to-date 2012}
-;;               ;; ;; Note that
-;;               ;; ;; the role of this query here
-;;               ;; ;; is just to supply column names.
-;;               %))
-;;        (map keys)
-;;        (map #(apply hash-set %))
-;;        (reduce clojure.set/union)
-;;        sort
-;;        (concat [:yeshuv :yeud :from-date :to-date])
-;;        ))
+(def results-col-names
+  (->> {:yeshuv 5000}
+       get-results-urls
+                                        ;(take 10)
+       (map #(construct-map-of-results
+              {}
+              ;; {:yeshuv 5000
+              ;;  :yeud 2
+              ;;  :from-date 2003
+              ;;  :to-date 2012}
+              ;; ;; Note that
+              ;; ;; the role of this query here
+              ;; ;; is just to supply column names.
+              %))
+       (map keys)
+       (map #(apply hash-set %))
+       (reduce clojure.set/union)
+       sort
+       (concat [:yeshuv :yeud :from-date :to-date])
+       ))
 
 ;; (defn construct-dataset-for-query [query]
 ;;   (->> query
