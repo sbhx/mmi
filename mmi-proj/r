@@ -1,0 +1,12 @@
+#! /bin/bash
+
+# simple run script 
+
+lein compile
+
+lein run > ~/workspace/logs/$(date +"%Y%m%d%H%M%S").log 2>&1 &
+
+
+
+
+
