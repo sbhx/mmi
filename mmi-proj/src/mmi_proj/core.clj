@@ -16,6 +16,28 @@
 
 
 ;;;;;;;;
+;; Utilities for cached computation
+
+(defn get-and-save-or-load [construct-filename-for-input-fn
+                            get-output-fn
+                            input-kw
+                            output-kw
+                            input]
+  (let [filename (construct-filename-for-input-fn input)]
+    (if (not (.exists (java.io.File. filename)))
+      (let [output (get-output-fn input)]
+        (spit
+         filename
+         (str "'" (pr-str {input-kw input output-kw output})))
+        (print (str "wrote \t"))
+        (println (:out (sh "ls" "-l" filename)))
+        output)
+      (do
+        (println (str "already exists: " filename))
+        (output-kw (load-file filename))))))
+
+
+;;;;;;;;
 ;; Data scraping functions
 
 (defn construct-query-url [query]
@@ -60,23 +82,18 @@
 
 (defn construct-filename-for-query [query]
   (str
-   "/home/we/workspace/data/urls/"
+   "/home/we/workspace/data/mmi/urls/"
    (clojure.string/replace (apply str query) #"\[|\]|:|\"| " "")
    ".clj")
   )
 
 (defn get-and-save-or-load-results-urls [query]
-  (let [filename (construct-filename-for-query query)]
-    (if (not (.exists (java.io.File. filename)))
-      (let [results-urls (get-results-urls query)]
-        (spit
-         filename
-         (str "'" (pr-str {:query query :results-urls results-urls})))
-        ;;(println (str "wrote " (count results-urls) " urls to" filename))
-        results-urls)
-      (do
-        ;;(println (str "already exists: " filename))
-        (:results-urls (load-file filename))))))
+  (get-and-save-or-load
+   construct-filename-for-query
+   get-results-urls
+   :query
+   :results-url
+   query))
 
 (defn construct-day-yeshuv-query [date yeshuv]
   {:from-date date :to-date date :yeshuv yeshuv})
@@ -217,36 +234,37 @@
 
 (defn construct-filename-for-results-url [results-url]
   (str
-   "/home/we/workspace/data/maps/"
+   "/home/we/workspace/data/mmi/maps/"
    (clojure.string/replace results-url #"[/|:|\?|\&]" ".")
    ".clj"))
 
-;; TODO: Generalize this fn and the very similar one above.
-(defn get-and-save-or-load-map-of-results-urls [results-url]
-  (let [filename (construct-filename-for-results-url results-url)]
-    (if (not (.exists (java.io.File. filename)))
-      (let [map-of-results (construct-map-of-results results-url)]
-        (spit
-         filename
-         (str "'" (pr-str {:results-url results-url :map-of-results map-of-results})))
-        (println (str "wrote to " filename))
-        map-of-results)
-      (do
-        (println (str "already exists: " filename))
-        (:map-of-results (load-file filename))))))
 
+(defn get-and-save-or-load-map-of-results [results-url]
+  (get-and-save-or-load
+   construct-filename-for-results-url
+   construct-map-of-results
+   :results-url
+   :map-of-results
+   results-url))
 
+ 
 (defn -main []
   (let [ results-urls
         (flatten
          (doall ( pmap
                   get-and-save-or-load-results-urls 
-                  (construct-queries))))]
-    (doall (pmap
-            get-and-save-or-load-map-of-results-urls
-            results-urls))))
+                  (take 600 (construct-queries)))))
+        maps-of-results (doall (pmap
+                                get-and-save-or-load-map-of-results
+                                results-urls))
+        ]
+    ;; (spit "/home/we/workspace/data/mmi/maps.clj"
+    ;;       (str "'" (pr-str maps-of-results)) )
+    (println "a")
+    ) )
 
-
+(def maps-of-results
+  (load-file "/home/we/workspace/data/mmi/maps.clj"))
 
 
 ;; (defn organize-results-maps-by-url [query]
