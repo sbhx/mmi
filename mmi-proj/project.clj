@@ -15,7 +15,8 @@
                  [ring "0.2.5"]
                  [net.cgrand/moustache "1.0.0-SNAPSHOT"]
                  [me.raynes/fs "1.4.4"]
-                 [net.mikera/core.matrix "0.7.2"]]
+                 [net.mikera/core.matrix "0.7.2"]
+                 [org.clojure/data.csv "0.1.2"]]
   :main mmi-proj.core
   :jvm-opts ["-Xmx6g"]
   )
