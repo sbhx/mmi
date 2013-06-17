@@ -265,16 +265,16 @@
         ]
     ;; (spit "/home/we/workspace/data/mmi/maps.clj"
     ;;        (str "'" (pr-str maps-of-results)) )
-    dataset-of-results
+    (dim dataset-of-results)
     ) )
 
-(def d
-  ;;(load-file "/home/we/workspace/data/mmi/maps.clj")
-  (-main)
-  )
+;; (def d
+;;   ;;(load-file "/home/we/workspace/data/mmi/maps.clj")
+;;   (-main)
+;;   )
 
-(with-open [out-file (clojure.java.io/writer "/home/we/workspace/data/dataset.csv")]
-  (clojure.data.csv/write-csv out-file d))
+;; (with-open [out-file (clojure.java.io/writer "/home/we/workspace/data/dataset.csv")]
+;;   (clojure.data.csv/write-csv out-file d))
 
 ;; (defn organize-results-maps-by-url [query]
 ;;   (->>
@@ -330,26 +330,26 @@
 ;;     maps))
 
 
-(def results-col-names
-  (->> {:yeshuv 5000}
-       get-results-urls
-                                        ;(take 10)
-       (map #(construct-map-of-results
-              {}
-              ;; {:yeshuv 5000
-              ;;  :yeud 2
-              ;;  :from-date 2003
-              ;;  :to-date 2012}
-              ;; ;; Note that
-              ;; ;; the role of this query here
-              ;; ;; is just to supply column names.
-              %))
-       (map keys)
-       (map #(apply hash-set %))
-       (reduce clojure.set/union)
-       sort
-       (concat [:yeshuv :yeud :from-date :to-date])
-       ))
+;; (def results-col-names
+;;   (->> {:yeshuv 5000}
+;;        get-results-urls
+;;                                         ;(take 10)
+;;        (map #(construct-map-of-results
+;;               {}
+;;               ;; {:yeshuv 5000
+;;               ;;  :yeud 2
+;;               ;;  :from-date 2003
+;;               ;;  :to-date 2012}
+;;               ;; ;; Note that
+;;               ;; ;; the role of this query here
+;;               ;; ;; is just to supply column names.
+;;               %))
+;;        (map keys)
+;;        (map #(apply hash-set %))
+;;        (reduce clojure.set/union)
+;;        sort
+;;        (concat [:yeshuv :yeud :from-date :to-date])
+;;        ))
 
 ;; (defn construct-dataset-for-query [query]
 ;;   (->> query
