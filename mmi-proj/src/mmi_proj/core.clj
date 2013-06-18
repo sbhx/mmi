@@ -239,6 +239,8 @@
    (clojure.string/replace results-url #"[/|:|\?|\&]" ".")
    ".clj"))
 
+(defn get-date-as-string []
+  (clojure.string/replace (.toString (java.util.Date.)) #"[:| ]" "_"))
 
 (defn get-and-save-or-load-map-of-results [results-url]
   (get-and-save-or-load
@@ -248,13 +250,13 @@
    :map-of-results
    results-url))
 
- 
+
 (defn -main []
   (let [ results-urls
         (flatten
          (doall ( pmap
                   get-and-save-or-load-results-urls 
-                  (take 600 (construct-queries)))))
+                  (construct-queries))))
         maps-of-results (doall (pmap
                                 get-and-save-or-load-map-of-results
                                 results-urls))
@@ -262,19 +264,28 @@
         (->> maps-of-results (map keys) (map #(apply hash-set %)) (reduce clojure.set/union))
         dataset-of-results
         (dataset results-col-names maps-of-results)
-        ]
-    ;; (spit "/home/we/workspace/data/mmi/maps.clj"
-    ;;        (str "'" (pr-str maps-of-results)) )
-    (dim dataset-of-results)
-    ) )
+        results-rows
+        (map
+         #(sel dataset-of-results :rows %)
+         (range (nrow dataset-of-results)))
+        dataset-filename
+        (str "/home/we/workspace/data/dataset."
+             (get-date-as-string)
+             ".csv" )]
+    (with-open [out-file (clojure.java.io/writer
+                          dataset-filename)]
+      (clojure.data.csv/write-csv
+       out-file
+       (cons results-col-names results-rows )))
+    (println (str "wrote " dataset-filename))
+    "done")) 
 
-;; (def d
-;;   ;;(load-file "/home/we/workspace/data/mmi/maps.clj")
-;;   (-main)
-;;   )
 
-;; (with-open [out-file (clojure.java.io/writer "/home/we/workspace/data/dataset.csv")]
-;;   (clojure.data.csv/write-csv out-file d))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; OLD DRAFTS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; (defn organize-results-maps-by-url [query]
 ;;   (->>
