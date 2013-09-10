@@ -7,13 +7,16 @@
   (:require [clojure.string :as string])
   (:require clojure.pprint)
   (:require clojure.inspector))
-
+(apply require clojure.main/repl-requires) 
 (use '(incanter core stats charts io))
 (require 'clojure.core.matrix)
 (require 'clojure.core.matrix.operators)
 (use '[clojure.java.shell :only [sh]])
+(require 'clojure.reflect)
 (import [java.net URL])
 (require 'clojure.data.csv)
+
+
 
 
 ;;;;;;;;
@@ -24,18 +27,25 @@
                             input-kw
                             output-kw
                             input]
-  (let [filename (construct-filename-for-input-fn input)]
-    (if (not (.exists (java.io.File. filename)))
-      (let [output (get-output-fn input)]
-        (spit
-         filename
-         (str "'" (pr-str {input-kw input output-kw output})))
-        (print (str "wrote \t"))
-        (println (:out (sh "ls" "-l" filename)))
-        output)
-      (do
-        (println (str "already exists: " filename))
-        (output-kw (load-file filename))))))
+  (try (let [filename (construct-filename-for-input-fn input)]
+         (if (not (.exists (java.io.File. filename)))
+           (let [output (get-output-fn input)]
+             (spit
+              filename
+              (str "'" (pr-str {input-kw input output-kw output})))
+             (print (str "wrote \t"))
+             (println (:out (sh "ls" "-l" filename)))
+             output)
+           (do
+             (println (str "already exists: " filename))
+             (output-kw (load-file filename)))))
+       (catch Exception e
+         (do
+           (println (str "got Exception "
+                         (.getMessage e)
+                         " for input "
+                         input))
+           (.printStackTrace e)))))
 
 
 ;;;;;;;;
@@ -64,12 +74,14 @@
 ;; TODO: Is it ok for parallelized use?
 (def fetch-url
   (memoize (fn  [url]
-             (-> url
-                 java.net.URL.
-                 .getContent
-                 (java.io.InputStreamReader. "Windows-1255")
-                 html/html-resource
-                 ))))
+             (do
+               (println (str "trying to fetch " url))
+               (-> url
+                   java.net.URL.
+                   .getContent
+                   (java.io.InputStreamReader. "Windows-1255")
+                   html/html-resource
+                   )))))
 
 
 (defn get-results-urls [query]
@@ -124,6 +136,21 @@
      html
      [ (html/attr= :class "tblSmallText tblLowLines")])))
 
+(defn get-titletable-from-results-url
+  [url]
+  (let [html (fetch-url url)]
+    (html/select
+     html
+     [ (html/attr= :class "tblGreen")])))
+
+(defn get-id-from-titletable [titletable]
+  (second (first 
+           (map #(map html/text %)
+                (map #(html/select % [[:td]])
+                     (html/select titletable [:tr]))))))
+
+;; (-> {:yeshuv 4000} get-results-urls first get-titletable-from-results-url get-id-from-titletable )
+
 (defn get-regular-data-from-table-or-tables [table-or-tables]
   ;; Note that it works when the input is a seq of more than one
   ;; table.
@@ -132,7 +159,6 @@
        (map #(html/select % [[:td
                               (html/but (html/has-class "lightGrey"))]])
             (html/select table-or-tables [:tr]))))
-
 
 (defn get-all-data-from-table-or-tables [table-or-tables]
   ;; Note that it works when the input is a seq of more than one
@@ -188,7 +214,7 @@
     (str "o " s " o")
     s))
 
-(defn prepare-for-map [strings]
+(defn prepare-for-map1 [strings]
   (->> strings
        reverse
        (map put-Latin-around-Hebrew)
@@ -205,7 +231,7 @@
   (->> results-url
        get-tables-from-results-url
        get-regular-data-from-table-or-tables
-       (map prepare-for-map)
+       (map prepare-for-map1)
        (reduce concat)
        (apply hash-map)))
 
@@ -225,13 +251,17 @@
      :o-חלקות-o (second gush-data)}
     ))
 
+(defn construct-map3-of-results [results-url]
+  {:id (get-id-from-titletable
+        (get-titletable-from-results-url results-url))})
+
 (defn construct-map-of-results [results-url]
   (do
     (println results-url)
     (-> (sorted-map)
         (into (construct-map1-of-results results-url))
         (into (construct-map2-of-results results-url))
-        )))
+        (into (construct-map3-of-results results-url)))))
 
 (defn construct-filename-for-results-url [results-url]
   (str
@@ -250,13 +280,12 @@
    :map-of-results
    results-url))
 
-
 (defn -main []
   (let [ results-urls
         (flatten
-         (doall ( pmap
-                  get-and-save-or-load-results-urls 
-                  (construct-queries))))
+         (doall (pmap
+                 get-and-save-or-load-results-urls 
+                 (construct-queries))))
         maps-of-results (doall (pmap
                                 get-and-save-or-load-map-of-results
                                 results-urls))
@@ -278,226 +307,226 @@
        out-file
        (cons results-col-names results-rows )))
     (println (str "wrote " dataset-filename))
-    "done")) 
+    "done") 
 
 
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; OLD DRAFTS
+  ;; OLD DRAFTS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; (defn organize-results-maps-by-url [query]
-;;   (->>
-;;    (for [results-url (get-results-urls query)]
-;;      [results-url (construct-map-of-results results-url)])
-;;    flatten
-;;    (apply hash-map)
-;;    ))
+  ;; (defn organize-results-maps-by-url [query]
+  ;;   (->>
+  ;;    (for [results-url (get-results-urls query)]
+  ;;      [results-url (construct-map-of-results results-url)])
+  ;;    flatten
+  ;;    (apply hash-map)
+  ;;    ))
 
 
-;; (defn get-and-save-results-map [query]
-;;   (spit
-;;    (construct-filename-for-query query)
-;;    (pr-str {:query query
-;;             :results-map
-;;             })))
+  ;; (defn get-and-save-results-map [query]
+  ;;   (spit
+  ;;    (construct-filename-for-query query)
+  ;;    (pr-str {:query query
+  ;;             :results-map
+  ;;             })))
 
-;; (defn construct-and-save-map-of-results [results-url]
-;;   (do
-;;     (println results-url)
-;;     (let [results-map (-> (sorted-map)
-;;                           (into (construct-map1-of-results results-url))
-;;                           (into (construct-map2-of-results results-url))
-;;                           )
-;;           outfilename (str "/home/we/projects/proj1/data/results-maps/" (clojure.string/replace url #":|\?|\&|/" "-") ".clj")]
-;;       (if (.exists (java.io.File. outfilename))
-;;         )
-;;       (spit outfilename results-map)
-;;       (println (str "saved results map for " url " to " outfilename))
-;;       results-map)))
+  ;; (defn construct-and-save-map-of-results [results-url]
+  ;;   (do
+  ;;     (println results-url)
+  ;;     (let [results-map (-> (sorted-map)
+  ;;                           (into (construct-map1-of-results results-url))
+  ;;                           (into (construct-map2-of-results results-url))
+  ;;                           )
+  ;;           outfilename (str "/home/we/projects/proj1/data/results-maps/" (clojure.string/replace url #":|\?|\&|/" "-") ".clj")]
+  ;;       (if (.exists (java.io.File. outfilename))
+  ;;         )
+  ;;       (spit outfilename results-map)
+  ;;       (println (str "saved results map for " url " to " outfilename))
+  ;;       results-map)))
 
-;; (defn construct-map-of-results [query results-url]
-;;   (do
-;;     (println results-url)
-;;     (-> (sorted-map)
-;;         (into (construct-map1-of-results results-url))
-;;         (into (construct-map2-of-results results-url))
-;;         (into query)
-;;         )))
+  ;; (defn construct-map-of-results [query results-url]
+  ;;   (do
+  ;;     (println results-url)
+  ;;     (-> (sorted-map)
+  ;;         (into (construct-map1-of-results results-url))
+  ;;         (into (construct-map2-of-results results-url))
+  ;;         (into query)
+  ;;         )))
 
-;; (defn construct-and-save-maps-of-results [query]
-;;   (let [ maps (->> query
-;;                    get-results-urls
-;;                    (map #(construct-map-of-results query %))
-;;                    doall)
-;;         outfilename (str
-;;                      "/home/we/projects/proj1/data/maps-of-results."
-;;                      (hash query)
-;;                      (System/currentTimeMillis)
-;;                      ".clj")]
-;;     (spit outfilename (str "'" (pr-str maps)))
-;;     (println (str "saved results for " query " to " outfilename))
-;;     maps))
+  ;; (defn construct-and-save-maps-of-results [query]
+  ;;   (let [ maps (->> query
+  ;;                    get-results-urls
+  ;;                    (map #(construct-map-of-results query %))
+  ;;                    doall)
+  ;;         outfilename (str
+  ;;                      "/home/we/projects/proj1/data/maps-of-results."
+  ;;                      (hash query)
+  ;;                      (System/currentTimeMillis)
+  ;;                      ".clj")]
+  ;;     (spit outfilename (str "'" (pr-str maps)))
+  ;;     (println (str "saved results for " query " to " outfilename))
+  ;;     maps))
 
 
-;; (def results-col-names
-;;   (->> {:yeshuv 5000}
-;;        get-results-urls
-;;                                         ;(take 10)
-;;        (map #(construct-map-of-results
-;;               {}
-;;               ;; {:yeshuv 5000
-;;               ;;  :yeud 2
-;;               ;;  :from-date 2003
-;;               ;;  :to-date 2012}
-;;               ;; ;; Note that
-;;               ;; ;; the role of this query here
-;;               ;; ;; is just to supply column names.
-;;               %))
-;;        (map keys)
-;;        (map #(apply hash-set %))
-;;        (reduce clojure.set/union)
-;;        sort
-;;        (concat [:yeshuv :yeud :from-date :to-date])
-;;        ))
+  ;; (def results-col-names
+  ;;   (->> {:yeshuv 5000}
+  ;;        get-results-urls
+  ;;                                         ;(take 10)
+  ;;        (map #(construct-map-of-results
+  ;;               {}
+  ;;               ;; {:yeshuv 5000
+  ;;               ;;  :yeud 2
+  ;;               ;;  :from-date 2003
+  ;;               ;;  :to-date 2012}
+  ;;               ;; ;; Note that
+  ;;               ;; ;; the role of this query here
+  ;;               ;; ;; is just to supply column names.
+  ;;               %))
+  ;;        (map keys)
+  ;;        (map #(apply hash-set %))
+  ;;        (reduce clojure.set/union)
+  ;;        sort
+  ;;        (concat [:yeshuv :yeud :from-date :to-date])
+  ;;        ))
 
-;; (defn construct-dataset-for-query [query]
-;;   (->> query
-;;        get-results-urls
-;;        (map #(construct-map-of-results query %))
-;;        (dataset results-col-names)))
+  ;; (defn construct-dataset-for-query [query]
+  ;;   (->> query
+  ;;        get-results-urls
+  ;;        (map #(construct-map-of-results query %))
+  ;;        (dataset results-col-names)))
 
-;; (defn construct-and-save-dataset-for-query [query]
+  ;; (defn construct-and-save-dataset-for-query [query]
   
-;;   (->> query
-;;        get-results-urls
-;;        (map #(construct-map-of-results query %))
-;;        (dataset results-col-names)))
+  ;;   (->> query
+  ;;        get-results-urls
+  ;;        (map #(construct-map-of-results query %))
+  ;;        (dataset results-col-names)))
 
-;;  (defn string-to-int [s]
-;;   (if (seq s)
-;;     (Integer. s)
-;;     nil))
+  ;;  (defn string-to-int [s]
+  ;;   (if (seq s)
+  ;;     (Integer. s)
+  ;;     nil))
 
-;; (def numeric-columns
-;;   [:o-הוצאות-פיתוח-o
-;;    :o-הוצאות-פיתוח-למטר-o
-;;    :o-הוצאות-פיתוח-למטר-מבונה-o
-;;    :o-הוצאות-פיתוח-ליחד/חדר-o
-;;    :o-שטח-במר-o
-;;    :o-שטח-לבניה-במר-o
-;;    :o-סכום-זכיה-o
-;;    :o-מחיר-שומא-o
-;;    :o-מספר-הצעות-o
-;;    :o-ממוצע-הצעות-o
-;;    :o-סטיית-תקן-o
-;;    :o-מספר-מגרשים-באתר-o
-;;    ])
+  ;; (def numeric-columns
+  ;;   [:o-הוצאות-פיתוח-o
+  ;;    :o-הוצאות-פיתוח-למטר-o
+  ;;    :o-הוצאות-פיתוח-למטר-מבונה-o
+  ;;    :o-הוצאות-פיתוח-ליחד/חדר-o
+  ;;    :o-שטח-במר-o
+  ;;    :o-שטח-לבניה-במר-o
+  ;;    :o-סכום-זכיה-o
+  ;;    :o-מחיר-שומא-o
+  ;;    :o-מספר-הצעות-o
+  ;;    :o-ממוצע-הצעות-o
+  ;;    :o-סטיית-תקן-o
+  ;;    :o-מספר-מגרשים-באתר-o
+  ;;    ])
 
-;; (defn clean-numeric-string [s]
-;;   (apply str (filter #(Character/isDigit %) s)))
+  ;; (defn clean-numeric-string [s]
+  ;;   (apply str (filter #(Character/isDigit %) s)))
 
-;; (defn numeric-string-to-int [s]
-;;   (string-to-int (clean-numeric-string s)))
+  ;; (defn numeric-string-to-int [s]
+  ;;   (string-to-int (clean-numeric-string s)))
 
-;; ;; (defn numeric-string-to-int [s]
-;; ;;   (->> (clojure.string/replace s "," "")
-;; ;;        seq
-;; ;;        rest ;; remove strange first character
-;; ;;        (apply str)
-;; ;;        string-to-int
-;; ;;        ))
+  ;; ;; (defn numeric-string-to-int [s]
+  ;; ;;   (->> (clojure.string/replace s "," "")
+  ;; ;;        seq
+  ;; ;;        rest ;; remove strange first character
+  ;; ;;        (apply str)
+  ;; ;;        string-to-int
+  ;; ;;        ))
 
-;; (defn clean-numeric-columns [d numeric-columns]
-;;   (if (seq numeric-columns)
-;;     (recur
-;;      (transform-col d (first numeric-columns) numeric-string-to-int)
-;;      (rest numeric-columns))
-;;     d))
-
-
-;; (def queries
-;;   (for [yeshuv-code [3000 4000 5000
-;;                              ]
-;;                 to-year [2006 2007 2008 2009
-;;                          ]]
-;;     {
-;;      :yeshuv-code yeshuv-code
-;;      ;;:yeud 2
-;;      :from-date (dec to-year)
-;;      :to-date to-year}
-;;     )
-;;   )
-
-;; (def datasets
-;;   (into {} (for [query queries]
-;;              (do
-;;                (println query)
-;;                [query (construct-dataset-for-query query)]
-;;                ))))
-
-;; (def clean-datasets
-;;   (apply hash-map (flatten
-;;                    (map (fn [[ query d]]
-;;                           [query (clean-numeric-columns d numeric-columns)])
-;;                          (seq datasets)))))
-
-;; (map dim (vals clean-datasets))
+  ;; (defn clean-numeric-columns [d numeric-columns]
+  ;;   (if (seq numeric-columns)
+  ;;     (recur
+  ;;      (transform-col d (first numeric-columns) numeric-string-to-int)
+  ;;      (rest numeric-columns))
+  ;;     d))
 
 
-;; (for [ [q d] clean-datasets]
-;;   [q (sel d :rows (range 9))])
+  ;; (def queries
+  ;;   (for [yeshuv-code [3000 4000 5000
+  ;;                              ]
+  ;;                 to-year [2006 2007 2008 2009
+  ;;                          ]]
+  ;;     {
+  ;;      :yeshuv-code yeshuv-code
+  ;;      ;;:yeud 2
+  ;;      :from-date (dec to-year)
+  ;;      :to-date to-year}
+  ;;     )
+  ;;   )
+
+  ;; (def datasets
+  ;;   (into {} (for [query queries]
+  ;;              (do
+  ;;                (println query)
+  ;;                [query (construct-dataset-for-query query)]
+  ;;                ))))
+
+  ;; (def clean-datasets
+  ;;   (apply hash-map (flatten
+  ;;                    (map (fn [[ query d]]
+  ;;                           [query (clean-numeric-columns d numeric-columns)])
+  ;;                          (seq datasets)))))
+
+  ;; (map dim (vals clean-datasets))
 
 
-;; (pprint
-;;  (map (fn [name] [name ($ 1 name d)])
-;;       results-col-names))
+  ;; (for [ [q d] clean-datasets]
+  ;;   [q (sel d :rows (range 9))])
 
 
-;; (view (sel
-;;        d
-;;        :rows (range 9)))
-
-;; (view (histogram
-;;        (filter #(not ( nil? %)) ($ :o-סכום-זכיה-o  d))
-;;        :nbins 100))
-
-;; (save d "/home/we/results.tsv.csv" :delim \tab)
-;; (view d)
-
-;; (view (let [ xy (sel d :cols [:o-מחיר-שומא-o :o-סכום-זכיה-o])]
-;;                     (xy-plot
-;;                      (sel xy :cols 0)
-;;                      (sel xy :cols 1)
-;;                      :points true) ))
-
-;; (->> ($ :o-יעוד-o d)
-;;      frequencies
-;;      (sort-by second)
-;;      pprint
-;;      )
+  ;; (pprint
+  ;;  (map (fn [name] [name ($ 1 name d)])
+  ;;       results-col-names))
 
 
-;; ;;;;;;;;; draft
+  ;; (view (sel
+  ;;        d
+  ;;        :rows (range 9)))
+
+  ;; (view (histogram
+  ;;        (filter #(not ( nil? %)) ($ :o-סכום-זכיה-o  d))
+  ;;        :nbins 100))
+
+  ;; (save d "/home/we/results.tsv.csv" :delim \tab)
+  ;; (view d)
+
+  ;; (view (let [ xy (sel d :cols [:o-מחיר-שומא-o :o-סכום-זכיה-o])]
+  ;;                     (xy-plot
+  ;;                      (sel xy :cols 0)
+  ;;                      (sel xy :cols 1)
+  ;;                      :points true) ))
+
+  ;; (->> ($ :o-יעוד-o d)
+  ;;      frequencies
+  ;;      (sort-by second)
+  ;;      pprint
+  ;;      )
 
 
-
-
-;; ;; (map println (binding [*print-dup* true] (map prn-str
-;; ;;                                               {:a 2})))
-
-
-;; (clojure.java.shell/sh "firefox" (construct-query-url {:yeshuv-code 5000 :from-date "1/7/2007" :to-date  "1/1/2009"}))
-
-
-;; (map println (get-results-urls  {:yeshuv-code 5000 :from-date "1/7/2007" :to-date  "1/1/2009"}))
+  ;; ;;;;;;;;; draft
 
 
 
-;; (map (fn [_] (.size (into () _))) (.values results) )
 
-;; (def results-page (first (first (.values results-links))))
+  ;; ;; (map println (binding [*print-dup* true] (map prn-str
+  ;; ;;                                               {:a 2})))
+
+
+  ;; (clojure.java.shell/sh "firefox" (construct-query-url {:yeshuv-code 5000 :from-date "1/7/2007" :to-date  "1/1/2009"}))
+
+
+  ;; (map println (get-results-urls  {:yeshuv-code 5000 :from-date "1/7/2007" :to-date  "1/1/2009"}))
+
+
+
+  ;; (map (fn [_] (.size (into () _))) (.values results) )
+
+  ;; (def results-page (first (first (.values results-links))))
 
 
 
@@ -505,3 +534,4 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+  )
