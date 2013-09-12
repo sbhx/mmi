@@ -75,7 +75,7 @@
 (def fetch-url
   (memoize (fn  [url]
              (do
-               (println (str "trying to fetch " url))
+               (println (str (java.util.Date.) " trying to fetch " url))
                (-> url
                    java.net.URL.
                    .getContent
@@ -280,34 +280,45 @@
    :map-of-results
    results-url))
 
+
 (defn -main []
   (let [ results-urls
         (flatten
-         (doall (pmap
+         (doall (map
                  get-and-save-or-load-results-urls 
-                 (construct-queries))))
-        maps-of-results (doall (pmap
-                                get-and-save-or-load-map-of-results
-                                results-urls))
-        results-col-names
-        (->> maps-of-results (map keys) (map #(apply hash-set %)) (reduce clojure.set/union))
-        dataset-of-results
-        (dataset results-col-names maps-of-results)
-        results-rows
-        (map
-         #(sel dataset-of-results :rows %)
-         (range (nrow dataset-of-results)))
-        dataset-filename
-        (str "/home/we/workspace/data/dataset."
-             (get-date-as-string)
-             ".csv" )]
-    (with-open [out-file (clojure.java.io/writer
-                          dataset-filename)]
-      (clojure.data.csv/write-csv
-       out-file
-       (cons results-col-names results-rows )))
-    (println (str "wrote " dataset-filename))
-    "done") 
+                 (construct-queries))))]
+    (doseq [ru results-urls]
+      (get-and-save-or-load-map-of-results ru))
+    "done")) 
+
+;; (defn -main []
+;;   (let [ results-urls
+;;         (flatten
+;;          (doall (pmap
+;;                  get-and-save-or-load-results-urls 
+;;                  (construct-queries))))
+;;         maps-of-results (doall (pmap
+;;                                 get-and-save-or-load-map-of-results
+;;                                 results-urls))
+;;         results-col-names
+;;         (->> maps-of-results (map keys) (map #(apply hash-set %)) (reduce clojure.set/union))
+;;         dataset-of-results
+;;         (dataset results-col-names maps-of-results)
+;;         results-rows
+;;         (map
+;;          #(sel dataset-of-results :rows %)
+;;          (range (nrow dataset-of-results)))
+;;         dataset-filename
+;;         (str "/home/we/workspace/data/dataset."
+;;              (get-date-as-string)
+;;              ".csv" )]
+;;     (with-open [out-file (clojure.java.io/writer
+;;                           dataset-filename)]
+;;       (clojure.data.csv/write-csv
+;;        out-file
+;;        (cons results-col-names results-rows )))
+;;     (println (str "wrote " dataset-filename))
+;;     "done") 
 
 
 
@@ -534,4 +545,4 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-  )
+  
