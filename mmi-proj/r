@@ -4,7 +4,11 @@
 
 lein compile
 
-lein run > ~/workspace/logs/$(date +"%Y%m%d%H%M%S").log 2>&1 &
+logfile=~/workspace/logs/$(date +"%Y%m%d%H%M%S").log
+
+echo logfile=$logfile
+
+lein run > $logfile 2>&1 &
 
 
 
