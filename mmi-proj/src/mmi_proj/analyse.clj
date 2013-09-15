@@ -38,7 +38,7 @@
 
 
 (def d (read-dataset
-        "/home/we/workspace/data/dataset.Mon_Sep_16_00_12_01_IST_2013.csv"
+        "/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv"
         :header true))
 
 (pprint {:dim (dim d)
@@ -58,12 +58,12 @@
            (for [[month freq] month-freqs]
              {:month month :freq freq })))
 
-;; (view
-;;  (time-series-plot :month :freq
-;;           :data (replace-column :month
-;;                                 (map clj-time.coerce/to-long
-;;                                      (sel month-freqs-dataset :cols :month))
-;;                                 month-freqs-dataset)))
+(view
+ (time-series-plot :month :freq
+          :data (replace-column :month
+                                (map clj-time.coerce/to-long
+                                     (sel month-freqs-dataset :cols :month))
+                                month-freqs-dataset)))
 
 
 ;; (pprint
@@ -153,7 +153,7 @@
     frequencies
     (map (fn [val-count]
            (println (str "\"" (first val-count) "\"   ;" (second val-count) " times")))))
-
+ 
 
 (defn find-frequent-settlements [threshold]
   (->> d
