@@ -37,7 +37,7 @@
              (println (:out (sh "ls" "-l" filename)))
              output)
            (do
-             (println (str "already exists: " filename))
+             ;;(println (str "already exists: " filename))
              (output-kw (load-file filename)))))
        (catch Exception e
          (do
@@ -280,6 +280,41 @@
    :map-of-results
    results-url))
 
+(defn filter-positive [x]
+  (filter pos? x))
+
+(defn parse-number-or-nil
+  [parser-func string]
+  (if string (-> string
+                 (clojure.string/replace  #"," "")
+                 (.getBytes)
+                 seq
+                 filter-positive
+                 byte-array
+                 (String.)
+                 ((fn [s] (try (parser-func s)
+                              (catch NumberFormatException e nil)))))))
+
+(defn transform-cols
+  [adataset columns f & args]
+  (if (seq columns)
+    (apply transform-col
+           (apply transform-cols
+                  adataset
+                  (next columns)
+                  f
+                  args)
+           (first columns)
+           f
+           args)
+    ;; else
+    adataset))
+
+
+(def parse-int-or-nil
+  (partial parse-number-or-nil
+           (fn [s] (Integer/parseInt s))))
+
 
 ;; (defn -main []
 ;;   (let [ results-urls
@@ -297,17 +332,32 @@
          (doall (pmap
                  get-and-save-or-load-results-urls 
                  (construct-queries))))
-        maps-of-results (doall (pmap
-                                get-and-save-or-load-map-of-results
-                                results-urls))
+        maps-of-results (distinct (doall (pmap
+                                          get-and-save-or-load-map-of-results
+                                          results-urls)))
         results-col-names
         (->> maps-of-results (map keys) (map #(apply hash-set %)) (reduce clojure.set/union))
         dataset-of-results
-        (dataset results-col-names maps-of-results)
+        (transform-cols (dataset results-col-names maps-of-results)
+                       [:o-סכום-זכיה-o
+                        :o-הוצאות-פיתוח-o
+                        :o-מספר-מגרשים-באתר-o
+                        :o-שטח-במר-o
+                        :o-מחיר-שומא-o
+                        :o-סטיית-תקן-o
+                        :o-מספר-הצעות-o
+                        :o-ממוצע-הצעות-o
+                        :o-שטח-לבניה-במר-o
+                        :o-הוצאות-פיתוח-למטר-o
+                        :o-הוצאות-פיתוח-ליחד/חדר-o
+                        :o-הוצאות-פיתוח-למטר-מבונה-o
+                        ]
+                       parse-int-or-nil)
         results-rows
-        (map
-         #(sel dataset-of-results :rows %)
-         (range (nrow dataset-of-results)))
+        ;; (map
+        ;;  #(sel dataset-of-results :rows %)
+        ;;  (range (nrow dataset-of-results)))
+        (map vals (:rows dataset-of-results))
         dataset-filename
         (str "/home/we/workspace/data/dataset."
              (get-date-as-string)
@@ -318,7 +368,7 @@
        out-file
        (cons results-col-names results-rows )))
     (println (str "wrote " dataset-filename))
-    "done") 
+    "done")) 
 
 
 
