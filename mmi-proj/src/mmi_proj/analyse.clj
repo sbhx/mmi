@@ -18,40 +18,6 @@
 (require 'clojure.reflect)
 
 
-(defn filter-positive [x]
-  (filter pos? x))
-
-(defn parse-number-or-nil
-  [parser-func string]
-  (if string (-> string
-                 (clojure.string/replace  #"," "")
-                 (.getBytes)
-                 seq
-                 filter-positive
-                 byte-array
-                 (String.)
-                 ((fn [s] (try (parser-func s)
-                              (catch NumberFormatException e nil)))))))
-
-(defn transform-cols
-  [adataset columns f & args]
-  (if (seq columns)
-    (apply transform-col
-           (apply transform-cols
-                  adataset
-                  (next columns)
-                  f
-                  args)
-           (first columns)
-           f
-           args)
-    ;; else
-    adataset))
-
-
-(def parse-int-or-nil
-  (partial parse-number-or-nil
-           (fn [s] (Integer/parseInt s))))
 
 (defn remove-leading-zeros [s]
   (clojure.string/replace s #"^0+" ""))
@@ -71,23 +37,9 @@
 
 
 
-(def d (transform-cols (read-dataset
-                        "/home/we/projects/mmi/mmi-proj/data/dataset.Tue_Jun_18_23_02_43_IDT_2013.csv"
-                        :header true)
-                       [:o-סכום-זכיה-o
-                        :o-הוצאות-פיתוח-o
-                        :o-מספר-מגרשים-באתר-o
-                        :o-שטח-במר-o
-                        :o-מחיר-שומא-o
-                        :o-סטיית-תקן-o
-                        :o-מספר-הצעות-o
-                        :o-ממוצע-הצעות-o
-                        :o-שטח-לבניה-במר-o
-                        :o-הוצאות-פיתוח-למטר-o
-                        :o-הוצאות-פיתוח-ליחד/חדר-o
-                        :o-הוצאות-פיתוח-למטר-מבונה-o
-                        ]
-                       parse-int-or-nil))
+(def d (read-dataset
+        "/home/we/projects/mmi/mmi-proj/data/dataset.Tue_Jun_18_23_02_43_IDT_2013.csv"
+        :header true))
 
 (pprint {:dim (dim d)
          :col-names (col-names d)})
