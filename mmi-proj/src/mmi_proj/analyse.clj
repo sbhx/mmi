@@ -38,7 +38,7 @@
 
 
 (def d (read-dataset
-        "/home/we/projects/mmi/mmi-proj/data/dataset.Tue_Jun_18_23_02_43_IDT_2013.csv"
+        "/home/we/workspace/data/dataset.Mon_Sep_16_00_12_01_IST_2013.csv"
         :header true))
 
 (pprint {:dim (dim d)
@@ -49,8 +49,8 @@
 ;; [:o-מספר-תבע-o :o-שכונה-o :o-יעוד-o :o-מספרי-המגרשים-לפי-התבע-o :o-יעוד-מפורט-o :o-הוצאות-פיתוח-למטר-o :o-גוש-o :o-סכום-זכיה-o :o-תאריך-החלטה-o :o-הוצאות-פיתוח-למטר-מבונה-o :o-מספר-הצעות-o :o-הוצאות-פיתוח-ליחד/חדר-o :o-מחיר-שומא-o :o-שטח-במר-o :o-שטח-לבניה-במר-o :o-סטיית-תקן-o :o-מספר-מגרשים-באתר-o :o-ישוב-o :o-ממוצע-הצעות-o :o-הוצאות-פיתוח-o :o-חלקות-o :o-שם-הזוכה-o]
 
 (def month-freqs (into (sorted-map) (frequencies
-                                     (map convert-date-string-to-datetime-of-month
-                                          (filter #(not (= "12/06/2013" %))
+                                     (map (comp clj-time.coerce/to-long convert-date-string-to-datetime-of-month)
+                                          (filter identity
                                                   (sel d :cols :o-תאריך-החלטה-o))))))
 
 (def month-freqs-dataset
