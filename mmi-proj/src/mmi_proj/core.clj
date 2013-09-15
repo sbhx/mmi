@@ -354,10 +354,12 @@
                         ]
                        parse-int-or-nil)
         results-rows
-        ;; (map
-        ;;  #(sel dataset-of-results :rows %)
-        ;;  (range (nrow dataset-of-results)))
-        (map vals (:rows dataset-of-results))
+        (map
+         #(sel dataset-of-results :rows %)
+         (range (nrow dataset-of-results)))
+        ;; This would be wrong -- handles the case of missing values
+        ;; wrong:
+        ;; (map vals (:rows dataset-of-results))
         dataset-filename
         (str "/home/we/workspace/data/dataset."
              (get-date-as-string)
