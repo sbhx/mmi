@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [incanter/incanter-core "1.5.4"]
                  [incanter/incanter-charts "1.5.4"]
+                 [incanter/incanter-zoo "1.5.4"]
                  [clj-time "0.6.0"]
                  [quil "1.6.0"]
                  [com.jmeeks/clj-web-crawler "0.1.0-SNAPSHOT"]
