@@ -8,7 +8,7 @@
   (:require clojure.inspector)
   (:require [clj-time.core :as t]))
 (apply require clojure.main/repl-requires) 
-(use '(incanter core stats charts io))
+(use '(incanter core stats charts io zoo))
 (require 'clojure.core.matrix)
 (require 'clojure.core.matrix.operators)
 (use '[clojure.java.shell :only [sh]])
@@ -27,7 +27,9 @@
        (map remove-leading-zeros
             (clojure.string/split date-string #"/"))))
 
+
 (defn convert-date-string-to-datetime [date-string]
+  ;; TODO: Coult I just use clj-time.format/parse as in Clojure Data Analysis Cookbook?
   (let [[day month year] (extract-day-month-year date-string)]
     (t/date-time year month day)))
 
@@ -35,45 +37,90 @@
   (let [[day month year] (extract-day-month-year date-string)]
     (t/date-time year month)))
 
+(defn print-freqs [x]
+  (print-table (map #(hash-map :val (first %) :count (second %))
+                    (sort-by (comp  - second) (frequencies x)))))
 
 
-(def d (read-dataset
-        "/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv"
-        :header true))
+(def d (let [data-from-file (read-dataset
+                              "/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv"
+                              :header true)]
+         (conj-cols data-from-file
+                    (dataset [:date :month] ($map
+                                             (juxt convert-date-string-to-datetime
+                                                   convert-date-string-to-datetime-of-month)
+                                             :o-תאריך-החלטה-o data-from-file)))))
 
 (pprint {:dim (dim d)
          :col-names (col-names d)})
 
 
 
+
+
 ;; [:o-מספר-תבע-o :o-שכונה-o :o-יעוד-o :o-מספרי-המגרשים-לפי-התבע-o :o-יעוד-מפורט-o :o-הוצאות-פיתוח-למטר-o :o-גוש-o :o-סכום-זכיה-o :o-תאריך-החלטה-o :o-הוצאות-פיתוח-למטר-מבונה-o :o-מספר-הצעות-o :o-הוצאות-פיתוח-ליחד/חדר-o :o-מחיר-שומא-o :o-שטח-במר-o :o-שטח-לבניה-במר-o :o-סטיית-תקן-o :o-מספר-מגרשים-באתר-o :o-ישוב-o :o-ממוצע-הצעות-o :o-הוצאות-פיתוח-o :o-חלקות-o :o-שם-הזוכה-o]
 
 (def month-freqs (into (sorted-map) (frequencies
-                                     (map (comp clj-time.coerce/to-long convert-date-string-to-datetime-of-month)
-                                          (filter identity
-                                                  (sel d :cols :o-תאריך-החלטה-o))))))
+                                     (sel d :cols :month))))
 
 (def month-freqs-dataset
   (dataset [:month :freq]
            (for [[month freq] month-freqs]
              {:month month :freq freq })))
 
+(defn date-column-to-long [colname adataset]
+  (replace-column :month
+                  (map clj-time.coerce/to-long
+                       (sel month-freqs-dataset :cols colname))
+                  adataset))
+
 (view
  (time-series-plot :month :freq
-          :data (replace-column :month
-                                (map clj-time.coerce/to-long
-                                     (sel month-freqs-dataset :cols :month))
-                                month-freqs-dataset)))
+                   :data (date-column-to-long :month month-freqs-dataset)))
+
+($rollup #(mean (filter identity %)) :o-מחיר-שומא-o :month d)
+
+(view
+ (time-series-plot :month :o-הוצאות-פיתוח-o
+                   :data (date-column-to-long :month
+                                              ($rollup #(mean (filter identity %)) :o-הוצאות-פיתוח-o :month d))))
 
 
-;; (pprint
-;;  (into (sorted-map) (frequencies
-;;                      (sel d :cols :o-ישוב-o))))
+
+(defn filter-all-nonnil [adataset]
+  (to-dataset
+   (filter #(reduce (fn [x y] (and x y)) (vals %) )
+           (:rows adataset))))
+
+(view
+ (scatter-plot-matrix (to-dataset 
+                               (map
+                                (fn [row]
+                                  {:o-סכום־זכיה־למטר־מבונה-o (/ (:o-סכום-זכיה-o row)
+                                                              (:o-שטח-לבניה-במר-o row))
+                                   :o-הוצאות-פיתוח-למטר-מבונה-o (:o-הוצאות-פיתוח-למטר-מבונה-o row)})
+                                (:rows (filter-all-nonnil
+                                        ($ [:o-סכום-זכיה-o :o-שטח-לבניה-במר-o :o-הוצאות-פיתוח-למטר-מבונה-o] d)))))
+                      ;;:group-by 
+                      :nbins 20 ))
 
 
-(defn print-freqs [x]
-  (print-table (map #(hash-map :val (first %) :count (second %))
-                    (sort-by (comp  - second) (frequencies x)))))
+(view
+ (scatter-plot-matrix (to-dataset 
+                               (map
+                                (fn [row]
+                                  {:o-סכום־זכיה־למטר־מבונה-o (/ (:o-סכום-זכיה-o row)
+                                                                (:o-שטח-לבניה-במר-o row))
+                                   :o-מחיר־שומא־למטר־מבונה-o (/ (:o-מחיר-שומא-o row)
+                                                              (:o-שטח-לבניה-במר-o row))})
+                                (:rows (filter-all-nonnil
+                                        ($ [:o-סכום-זכיה-o :o-שטח-לבניה-במר-o :o-מחיר-שומא-o] d)))))
+                      ;;:group-by 
+                      :nbins 20 ))
+
+
+
+
 
 (def names-of-no-winner #{
                           ;; This set was generated by the following code:
