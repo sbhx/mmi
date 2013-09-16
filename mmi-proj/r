@@ -6,7 +6,8 @@ lein compile
 
 logfile=~/workspace/logs/$(date +"%Y%m%d%H%M%S").log
 
-echo logfile=$logfile
+echo "logfile:"
+echo $logfile
 
 lein run > $logfile 2>&1 &
 
