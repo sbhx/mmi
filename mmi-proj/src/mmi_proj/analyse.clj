@@ -16,7 +16,18 @@
 (import [java.net URL])
 (require 'clojure.data.csv)
 (require 'clojure.reflect)
+(import '[org.jfree.chart ChartPanel JFreeChart])
+(import '[javax.swing JComponent JLabel JPanel])
+(require 'nuroko.gui.visual)
 
+
+(def panel (ChartPanel.
+            ^JFreeChart
+            (scatter-plot nil nil)))
+(nuroko.gui.visual/show panel)
+(defn show-chart [chart]
+  (do (.setChart panel ^JFreeChart chart)
+      (.repaint ^JComponent panel)))
 
 
 (defn remove-leading-zeros [s]
@@ -37,9 +48,13 @@
   (let [[day month year] (extract-day-month-year date-string)]
     (t/date-time year month)))
 
+
+(defn freqs-as-rows [x]
+  (map #(hash-map :val (first %) :count (second %))
+       (sort-by (comp  - second) (frequencies x))))
+
 (defn print-freqs [x]
-  (print-table (map #(hash-map :val (first %) :count (second %))
-                    (sort-by (comp  - second) (frequencies x)))))
+  (print-table (freqs-as-rows x)))
 
 
 (def d (let [data-from-file (read-dataset
