@@ -123,7 +123,18 @@
 
 (defn construct-queries []
   (for [date (construct-dates)
-        yeshuv [nil 3000 4000 5000]]
+        yeshuv [nil
+                3000
+                4000
+                5000
+                9000 ;; באר שבע
+                1268 ;; מיתר
+                3769 ;; הר אדר
+                7000 ;; לוד
+                7100 ;; אשקלון
+                1020 ;; אור עקיבא
+                7700 ;; עפולה
+                ]]
     (if (nil? yeshuv)
       (construct-day-query date)
       (construct-day-yeshuv-query date yeshuv))))
