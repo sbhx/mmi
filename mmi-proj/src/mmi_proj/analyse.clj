@@ -19,7 +19,7 @@
 (import '[org.jfree.chart ChartPanel JFreeChart])
 (import '[javax.swing JComponent JLabel JPanel])
 (require 'nuroko.gui.visual)
-
+(use '[clojure.algo.generic.functor :only [fmap]])
 
 (def panel (ChartPanel.
             ^JFreeChart
@@ -69,7 +69,10 @@
 (pprint {:dim (dim d)
          :col-names (col-names d)})
 
-
+(->> ($ [:id :o-גוש-o :o-חלקות-o :o-מספרי-המגרשים-לפי-התבע-o] d) :rows frequencies vals freqs-as-rows to-dataset)
+($where {:id "עמ/635/2007"} d)
+(->> ($ [:id :o-גוש-o :o-חלקות-o :o-מספרי-המגרשים-לפי-התבע-o :o-שם-הזוכה-o] d) :rows frequencies vals freqs-as-rows to-dataset)
+($where {:id "בש/235/2009"} d)
 
 
 
@@ -89,9 +92,9 @@
                        (sel month-freqs-dataset :cols colname))
                   adataset))
 
-(view
- (time-series-plot :month :freq
-                   :data (date-column-to-long :month month-freqs-dataset)))
+;; (view
+;;  (time-series-plot :month :freq
+;;                    :data (date-column-to-long :month month-freqs-dataset)))
 
 ($rollup #(mean (filter identity %)) :o-מחיר-שומא-o :month d)
 
@@ -101,19 +104,24 @@
                                               ($rollup #(mean (filter identity %)) :o-הוצאות-פיתוח-o :month d))))
 
 
+(defn and-func [x y]
+  (and x y))
 
 (defn filter-all-nonnil [adataset]
   (to-dataset
-   (filter #(reduce (fn [x y] (and x y)) (vals %) )
+   (filter #(reduce and-func
+                    (vals %))
            (:rows adataset))))
 
 (view
  (scatter-plot-matrix (to-dataset 
                                (map
                                 (fn [row]
-                                  {:o-סכום־זכיה־למטר־מבונה-o (/ (:o-סכום-זכיה-o row)
-                                                              (:o-שטח-לבניה-במר-o row))
-                                   :o-הוצאות-פיתוח-למטר-מבונה-o (:o-הוצאות-פיתוח-למטר-מבונה-o row)})
+                                  {:o-סכום־זכיה־למטר־מבונה-o
+                                   (/ (:o-סכום-זכיה-o row)
+                                      (:o-שטח-לבניה-במר-o row))
+                                   :o-הוצאות-פיתוח-למטר-מבונה-o
+                                   (:o-הוצאות-פיתוח-למטר-מבונה-o row)})
                                 (:rows (filter-all-nonnil
                                         ($ [:o-סכום-זכיה-o :o-שטח-לבניה-במר-o :o-הוצאות-פיתוח-למטר-מבונה-o] d)))))
                       ;;:group-by 
@@ -129,12 +137,44 @@
                                    :o-מחיר־שומא־למטר־מבונה-o (/ (:o-מחיר-שומא-o row)
                                                               (:o-שטח-לבניה-במר-o row))})
                                 (:rows (filter-all-nonnil
-                                        ($ [:o-סכום-זכיה-o :o-שטח-לבניה-במר-o :o-מחיר-שומא-o] d)))))
+                                        ($ [:o-סכום-זכיה-o :o-שטח-לבניה-במר-o :o-מחיר-שומא-o] d)))b))
                       ;;:group-by 
                       :nbins 20 ))
 
 
+(frequencies (map #(map nil?
+                        (vals %))
+                  (:rows ($ [ :o-שטח-לבניה-במר-o :o-מחיר-שומא-o] d))))
 
+
+;; :o-שטח-לבניה-במר-o is used until 2001,
+;; :o-מחיר-שומא-o  is used from 2009
+(->> (map
+      (juxt (comp t/year convert-date-string-to-datetime :o-תאריך-החלטה-o)
+            (comp nil? :o-מחיר-שומא-o)
+            (comp nil? :o-שטח-לבניה-במר-o))
+      (:rows d))
+     freqs-as-rows
+     to-dataset
+     ($order :val :asc))
+
+
+;; The following check is valid only for numeric fields.
+(defn find-active-years-of-column [col-keyword]
+  (->> (map (comp
+             t/year convert-date-string-to-datetime :o-תאריך-החלטה-o)
+            (filter (fn [row] (and (col-keyword row)
+                                  (not (= (col-keyword row)
+                                          ""))))
+                    (:rows d)))
+       ;;freqs-as-rows to-dataset ($order :val :asc)
+       distinct))
+(col-names 
+ (to-dataset (seq
+              (fmap #(reduce (fn [x y] (str x " " y)) (sort (find-active-years-of-column %)))
+                    (apply conj (map (fn [col-name] {col-name col-name})
+                                     (col-names d))))))
+ [:field :active-years])
 
 
 (def names-of-no-winner #{
