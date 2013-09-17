@@ -20,6 +20,7 @@
 (import '[javax.swing JComponent JLabel JPanel])
 (require 'nuroko.gui.visual)
 (use '[clojure.algo.generic.functor :only [fmap]])
+(import 'java.lang.Math)
 
 (def panel (ChartPanel.
             ^JFreeChart
@@ -56,9 +57,11 @@
 (defn print-freqs [x]
   (print-table (freqs-as-rows x)))
 
+(def dataset-filename
+  "/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv")
 
 (def d (let [data-from-file (read-dataset
-                              "/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv"
+                             dataset-filename
                               :header true)]
          (conj-cols data-from-file
                     (dataset [:date :month] ($map
@@ -137,7 +140,7 @@
                                    :o-מחיר־שומא־למטר־מבונה-o (/ (:o-מחיר-שומא-o row)
                                                               (:o-שטח-לבניה-במר-o row))})
                                 (:rows (filter-all-nonnil
-                                        ($ [:o-סכום-זכיה-o :o-שטח-לבניה-במר-o :o-מחיר-שומא-o] d)))b))
+                                        ($ [:o-סכום-זכיה-o :o-שטח-לבניה-במר-o :o-מחיר-שומא-o] d)))))
                       ;;:group-by 
                       :nbins 20 ))
 
@@ -276,3 +279,75 @@
  (filter (comp (partial <= 100)
                nrow))
  (map dim))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defn plot [d transf]
+  (->> d
+       :rows
+       (filter #(every? identity (vals %)))
+       (map transf)
+       (#(histogram % :nbins 50))
+       show-chart))
+
+(plot ($ [:o-סכום-זכיה-o] d)
+      #(Math/log (first (vals %))))
+
+(plot ($ [:o-הוצאות-פיתוח-ליחד/חדר-o] d)
+      #(Math/log (first (vals %))))
+
+(plot ($ [:o-הוצאות-פיתוח-ליחד/חדר-o :o-הוצאות-פיתוח-o ] d)
+      #(Math/log (/ (:o-הוצאות-פיתוח-o % )
+                    (:o-הוצאות-פיתוח-ליחד/חדר-o %))))
+
+(plot ($ [:o-הוצאות-פיתוח-ליחד/חדר-o :o-הוצאות-פיתוח-o ]
+         ($where d))
+      #(Math/log (/ (:o-הוצאות-פיתוח-o % )
+                    (:o-הוצאות-פיתוח-ליחד/חדר-o %))))
+
+(->> ($ :o-יעוד-o d) freqs-as-rows to-dataset)
+ 
+(->> ($ [:o-יעוד-o :o-יעוד-מפורט-o] d) :rows freqs-as-rows to-dataset)
+
+
+(->> ($ [:o-יעוד-o :o-הוצאות-פיתוח-ליחד/חדר-o :o-הוצאות-פיתוח-o] d)
+     filter-all-nonnil
+     :rows
+     (map (fn [row] {:log2-units (int (Math/floor (/ (Math/log (/ (:o-הוצאות-פיתוח-o row )
+                                                                 (:o-הוצאות-פיתוח-ליחד/חדר-o row)))
+                                                    (Math/log 2))))
+                    :dest (:o-יעוד-o row)}))
+     freqs-as-rows
+     (map (fn [row] (conj {:count (:count row)}
+                         (:val row))))
+     (sort-by str)
+     to-dataset )
+
+(->> ($ [:o-ישוב-o :o-שכונה-o :o-יעוד-o :o-תאריך-החלטה-o] d)
+     :rows
+     (map (juxt :o-ישוב-o
+                :o-שכונה-o
+                :o-יעוד-o
+                (comp #(nth % 2)
+                      extract-day-month-year
+                      :o-תאריך-החלטה-o)))
+     freqs-as-rows
+     (take 200)
+     (map (fn [row] (concat
+                    [(:count row)]
+                    (:val row))))
+     to-dataset
+     (#(col-names %
+                  [:count :o-ישוב-o :o-שכונה-o :o-יעוד-o :year]))
+     (#(save % (str dataset-filename ".most-frequent.csv")))
+     ;; :rows
+     ;; (map :count)
+     ;; (reduce +)
+     )
+
+
+(sh "libreoffice" "/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv.most-frequent.csv")
+
+
+
+
