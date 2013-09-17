@@ -58,7 +58,8 @@
   (print-table (freqs-as-rows x)))
 
 (def dataset-filename
-  "/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv")
+  ;;"/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv"
+  "/home/we/workspace/data/dataset.Tue_Sep_17_21_04_47_IST_2013.csv")
 
 (def d (let [data-from-file (read-dataset
                              dataset-filename
