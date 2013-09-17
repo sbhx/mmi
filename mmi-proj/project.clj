@@ -19,7 +19,8 @@
                  [me.raynes/fs "1.4.4"]
                  [net.mikera/core.matrix "0.7.2"]
                  [org.clojure/data.csv "0.1.2"]
-                 [com.nuroko/nurokit "0.0.3"]]
+                 [com.nuroko/nurokit "0.0.3"]
+                 [org.clojure/algo.generic "0.1.1"]]
   :main mmi-proj.core
   :jvm-opts ["-Xmx6g"]
   )
