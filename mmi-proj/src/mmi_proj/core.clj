@@ -188,17 +188,17 @@
       (string/replace \space \-)
       keyword))
 
-(defn remove-quotes-tabs-and-newlines [s]
+(defn remove-quotes-brackets-tabs-and-newlines [s]
   (clojure.string/replace
    (clojure.string/replace
    s
-   #"[\"|#]" "")
+   #"[\"\(\)]" "-")
    #"[\t|\n]" ""))
 
 (defn is-legitimate-pair? [k v]
   (and
    (not (or (= k "o   o") (= v "o   o"))) ;; niether k nor v is underscore
-   (re-matches #"o [אבגדהוזחטיכלמנסעפצקרשת].* o" k) ;; k has a Hebrew letter
+   (re-matches #"o .*[אבגדהוזחטיכלמנסעפצקרשת].* o" k) ;; k has a Hebrew letter
    ))
 
 (defn make-even-clean-and-make-keys-keywords [string-cleaner todo & already-done]
@@ -221,7 +221,7 @@
     already-done))
 
 (defn put-Latin-around-Hebrew [s]
-  (if (re-matches #".*[אבגדהוזחטיכלמנסעפצקרשת].*" s)
+  (if (re-matches #"(?s).*[אבגדהוזחטיכלמנסעפצקרשת].*" s)
     (str "o " s " o")
     s))
 
@@ -229,7 +229,8 @@
   (->> strings
        reverse
        (map put-Latin-around-Hebrew)
-       (make-even-clean-and-make-keys-keywords remove-quotes-tabs-and-newlines)
+       (map remove-quotes-brackets-tabs-and-newlines)
+       (make-even-clean-and-make-keys-keywords identity)
        ))
 
 (defn prepare-for-map2 [strings]
