@@ -349,26 +349,37 @@
                                           results-urls)))
         results-col-names
         (->> maps-of-results (map keys) (map #(apply hash-set %)) (reduce clojure.set/union))
+        ;; Infrequent col-names are here by mistake.
+        frequent-results-col-names
+        (filter (fn [col-name]
+                  (< 100 (count
+                          (filter identity
+                                  (map col-name maps-of-results)))))
+                results-col-names)
         dataset-of-results
-        (transform-cols (dataset results-col-names maps-of-results)
-                       [:o-סכום-זכיה-o
-                        :o-הוצאות-פיתוח-o
-                        :o-מספר-מגרשים-באתר-o
-                        :o-שטח-במר-o
-                        :o-מחיר-שומא-o
-                        :o-סטיית-תקן-o
-                        :o-מספר-הצעות-o
-                        :o-ממוצע-הצעות-o
-                        :o-שטח-לבניה-במר-o
-                        :o-הוצאות-פיתוח-למטר-o
-                        :o-הוצאות-פיתוח-ליחד/חדר-o
-                        :o-הוצאות-פיתוח-למטר-מבונה-o
-                        ]
-                       parse-int-or-nil)
+        (transform-cols (dataset frequent-results-col-names maps-of-results)
+                        [
+                         :o-מחיר-מינימום-o,
+                         :o-שטח-לבניה-במ-ר-o,
+                         :o-הוצאות-פיתוח-למטר-o,
+                         :o-שטח-במ-ר-o,
+                         :o-סכום-זכיה-o,
+                         :o-הוצאות-פיתוח-למטר-מבונה-o,
+                         :o-מספר-הצעות-o,
+                         :o-מחיר-שומא-o,
+                         :o-/--קיבולת-ביח-ד--במגורים-בחדרים--במלונאות-o,
+                         :o-סטיית-תקן-o,
+                         :o-מספר-מגרשים-באתר-o,
+                         :o-ממוצע-הצעות-o,
+                         :o-הוצאות-פיתוח-ליח-ד/חדר-o,
+                         :o-הוצאות-פיתוח-o,
+                         ]
+                        parse-int-or-nil)
         results-rows
         (map
          #(sel dataset-of-results :rows %)
          (range (nrow dataset-of-results)))
+        
         ;; This would be wrong -- handles the case of missing values
         ;; wrong:
         ;; (map vals (:rows dataset-of-results))
@@ -380,7 +391,8 @@
                           dataset-filename)]
       (clojure.data.csv/write-csv
        out-file
-       (cons results-col-names results-rows )))
+       (cons (map name frequent-results-col-names)
+             results-rows)))
     (println (str "wrote " dataset-filename))
     "done")) 
 
