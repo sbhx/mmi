@@ -31,6 +31,10 @@
       (.repaint ^JComponent panel)))
 
 
+(defn approximately-equal? [x y]
+  (< x (* 1.1 y)
+     ))
+
 (defn remove-leading-zeros [s]
   (clojure.string/replace s #"^0+" ""))
 
@@ -49,6 +53,15 @@
   (let [[day month year] (extract-day-month-year date-string)]
     (t/date-time year month)))
 
+(defn and-func [x y]
+  (and x y))
+
+(defn filter-all-nonnil [adataset]
+  (to-dataset
+   (filter #(reduce and-func
+                    (vals %))
+           (:rows adataset))))
+
 
 (defn freqs-as-rows [x]
   (map #(hash-map :val (first %) :count (second %))
@@ -58,17 +71,18 @@
   (print-table (freqs-as-rows x)))
 
 (def dataset-filename
-  ;;"/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv"
-  "/home/we/workspace/data/dataset.Tue_Sep_17_21_04_47_IST_2013.csv")
+  "/home/we/workspace/data/dataset.Thu_Sep_19_16_42_10_IST_2013.csv")
 
 (def d (let [data-from-file (read-dataset
                              dataset-filename
                               :header true)]
          (conj-cols data-from-file
-                    (dataset [:date :month] ($map
-                                             (juxt convert-date-string-to-datetime
-                                                   convert-date-string-to-datetime-of-month)
-                                             :o-תאריך-החלטה-o data-from-file)))))
+                    (dataset [:date :month :year-as-number] ($map
+                                                             (juxt convert-date-string-to-datetime
+                                                                   convert-date-string-to-datetime-of-month
+                                                                   (comp #(nth % 2)
+                                                                         extract-day-month-year))
+                                                             :o-תאריך-החלטה-o data-from-file)))))
 
 (pprint {:dim (dim d)
          :col-names (col-names d)})
@@ -77,6 +91,95 @@
 ($where {:id "עמ/635/2007"} d)
 (->> ($ [:id :o-גוש-o :o-חלקות-o :o-מספרי-המגרשים-לפי-התבע-o :o-שם-הזוכה-o] d) :rows frequencies vals freqs-as-rows to-dataset)
 ($where {:id "בש/235/2009"} d)
+
+
+(->> ($ [:o--קיבולת-ביח-ד--במגורים-בחדרים--במלונאות-o :o-הוצאות-פיתוח-o :o-הוצאות-פיתוח-ליח-ד/חדר-o] d)
+                    filter-all-nonnil
+                    :rows
+                    (map #( / (:o-/--קיבולת-ביח-ד--במגורים-בחדרים--במלונאות-o %)
+                                 (/ (:o-הוצאות-פיתוח-o %)
+                                    (:o-הוצאות-פיתוח-ליח-ד/חדר-o %))))
+                    (#(hash-map :min-ratio (reduce min %)
+                                :max-ratio (reduce max %))))
+
+
+(let [ ids (distinct ($ :id d))
+      split-ids (map #(clojure.string/split % #"/")
+                     ids)
+      split-ids-grouped-by-year (into (sorted-map) (group-by (fn [x] (Integer/parseInt (nth x 2)))
+                                                             split-ids))
+      summary-by-year (fmap (fn [split-ids-this-year]
+                              (let [idx (map (comp #(Integer/parseInt %)
+                                                   second)
+                                             split-ids-this-year)
+                                    max-idx (reduce max idx)
+                                    min-idx (reduce min idx)
+                                    count-idx (count idx)]
+                                (if (not (= count-idx
+                                            (count (distinct idx))))
+                                  (println {:error (take 9 split-ids-this-year)}))
+                                ;; (assert (= count-idx
+                                ;;            (count (distinct idx)))
+                                ;;        "no repeating index value in the same year")
+                                {:min min-idx
+                                 :max max-idx
+                                 :coverage-to-max (float (/ count-idx
+                                                            max-idx))}))
+                            split-ids-grouped-by-year)]
+  (to-dataset (map (fn [k-v]
+                     (conj {:year (first k-v)}
+                           (second k-v)))
+                   summary-by-year)))
+
+(to-dataset
+ (freqs-as-rows
+  (map (comp #(vector (first %)
+                      (last %))
+             #(clojure.string/split % #"/"))
+       ($ :id d))))
+
+(->> ($ [:id :o-תאריך-החלטה-o] d)
+     filter-all-nonnil
+     :rows
+     (map #(vector (last (clojure.string/split (:id %) #"/"))
+                   (last (clojure.string/split (:o-תאריך-החלטה-o %) #"/"))))
+     (filter #(not (= (first %)
+                      (second %))))
+     freqs-as-rows
+     to-dataset
+ )
+
+(->> ($ [:id :o-תאריך-החלטה-o] d)
+     filter-all-nonnil
+     :rows
+     (map #(vector (Integer/parseInt (last (clojure.string/split (:id %) #"/")))
+                   (Integer/parseInt (last (clojure.string/split (:o-תאריך-החלטה-o %) #"/")))))
+     (map #(apply - %))
+     freqs-as-rows
+     to-dataset
+ )
+
+
+
+
+
+
+(to-dataset
+ (freqs-as-rows
+  (map (comp first
+             #(clojure.string/split % #"/"))
+       ($ :id d))))
+
+
+(->>
+ ($ :id d)
+                    distinct
+(map )
+(filter #(and
+          (= (last %) "2006")))
+(map second) (map #(Integer/parseInt %))
+sort
+)
 
 
 
@@ -108,14 +211,6 @@
                                               ($rollup #(mean (filter identity %)) :o-הוצאות-פיתוח-o :month d))))
 
 
-(defn and-func [x y]
-  (and x y))
-
-(defn filter-all-nonnil [adataset]
-  (to-dataset
-   (filter #(reduce and-func
-                    (vals %))
-           (:rows adataset))))
 
 (view
  (scatter-plot-matrix (to-dataset 
@@ -325,6 +420,7 @@
      to-dataset )
 
 (->> ($ [:o-ישוב-o :o-שכונה-o :o-יעוד-o :o-תאריך-החלטה-o] d)
+     ($where {:o-יעוד-o "o בניה רוויה  o"})
      :rows
      (map (juxt :o-ישוב-o
                 :o-שכונה-o
@@ -340,7 +436,9 @@
      to-dataset
      (#(col-names %
                   [:count :o-ישוב-o :o-שכונה-o :o-יעוד-o :year]))
-     (#(save % (str dataset-filename ".most-frequent.csv")))
+     ;; (let [filename (str dataset-filename ".most-frequent.csv") ]
+     ;;   (println (str "writing " filename))
+     ;;   (#(save % filename)))
      ;; :rows
      ;; (map :count)
      ;; (reduce +)
@@ -350,5 +448,31 @@
 (sh "libreoffice" "/home/we/workspace/data/dataset.Mon_Sep_16_01_03_37_IST_2013.csv.most-frequent.csv")
 
 
+(->> ($ [:o-ישוב-o :o-שכונה-o :o-יעוד-o :year-as-number :o--קיבולת-ביח-ד--במגורים-בחדרים--במלונאות-o] d)
+     filter-all-nonnil
+     ($where {:o-יעוד-o "o בניה רוויה  o"})
+     ($rollup sum
+              :o--קיבולת-ביח-ד--במגורים-בחדרים--במלונאות-o
+              [:o-ישוב-o
+               :o-שכונה-o
+               :o-יעוד-o
+               :year-as-number])
+     ($order :o--קיבולת-ביח-ד--במגורים-בחדרים--במלונאות-o :desc)
+     (#(let [filename (str dataset-filename ".revuya-most-capacity.csv")]
+          (println (str "writing " filename))
+          (save % filename))))
+
+(sh "libreoffice" "/home/we/workspace/data/dataset.Thu_Sep_19_16_42_10_IST_2013.csv.revuya-most-capacity.csv")
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def neve-sharet-neighbs (into (hash-set) (filter
+                                           #(re-matches  #".*נ.*וה שרת.*" %)
+                                           (distinct ($ :o-שכונה-o d)))))
+
+neve-sharet-neighbs
+
+($where {:o-שכונה-o "o  נווה שרת צפון o"} d)
 
 
