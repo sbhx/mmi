@@ -72,11 +72,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn leave-values
-  [x vals-set]
-  (if (vals-set x)
-    )
-  )
+(defn leave-only-nil-and-values-of-set [vals-set]
+  (fn [x]
+    (if x (if (vals-set x)
+            x
+            ;; else
+            :other))))
+
+;; (= 
+;;  (map (leave-only-nil-and-values-of-set #{4 "A"})
+;;       [3 nil 3 4 "a" 1 "A" nil "A" 132])
+;;  [:other nil :other 4 :other :other "A" nil "A" :other])
 
 
 (defn freqs-as-rows [x]
@@ -115,7 +121,7 @@
         rows-vals (csv/read-csv file-reader)]
     {:column-names column-names
      :rows-vals rows-vals}))
-
+ 
 
 (defn read-csv-dataset [filename column-names nrows]
   (let [cols-and-rows (read-csv-seq filename)
@@ -149,11 +155,15 @@
                      :Hchns2008MbMchvPUF
                      :KtvtLifney5ShanaMetropolinPUF]
                     nil))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 (->>
  ($where {:SmlEzorStatistiKtvtMegurimPUF "235"} d)
  ($where {:Hchns2008MbMchvPUF {:$ne ""}})
- ($ [:KtvtLifney5ShanaMetropolinPUF :Hchns2008MbMchvPUF :TkufatSiyumBniyatDiraMchvPUF])
+ ($ [:KtvtLifney5ShanaMetropolinPUF
+     :Hchns2008MbMchvPUF
+     :TkufatSiyumBniyatDiraMchvPUF])
  (#(transform-col %
                    :Hchns2008MbMchvPUF
                    (fn [x] (> (Integer/parseInt x) 10))))
