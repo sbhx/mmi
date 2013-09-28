@@ -36,12 +36,49 @@
 ;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; https://gist.github.com/daveray/1441520
+;; (s/native!)
+
+;; (def frames
+;;   (atom {}))
+
+;; (defn sdisplay [frame-key content]
+;;   (let [frame (do (let [existing-frame (@frames frame-key)]
+;;                     (if existing-frame
+;;                       (do
+;;                         (println "found existing frame")
+;;                         existing-frame)     ;
+;;                       ;; else
+;;                       (do (let [new-frame (s/frame)]
+;;                             (println "adding new frame")
+;;                             (swap! frames assoc frame-key new-frame)
+;;                             new-frame)))))]
+;;     (when (not (.isShowing frame))
+;;       (-> frame s/pack! s/show!))
+;;     (s/config! frame
+;;                :content (s/border-panel
+;;                          :north (doto (s/label (str "   " frame-key))
+;;                                   (s/config! :background "#aabbcc"
+;;                                              :foreground "#334422"
+;;                                              :font (sf/font :name :monospaced
+;;                                                             :style #{:bold}
+;;                                                             :size 10)))
+;;                          :center content))))
+
+
+
+
+;; (defn show-chart [chart]
+;;   (sdisplay 1 (ChartPanel. chart)))
+
+
+
+;; https://gist.github.com/daveray/1441520
 (s/native!)
 
 (def frames
   (atom {}))
 
-(defn sdisplay [frame-key content]
+(defn sdisplay [frame-key content controls]
   (let [frame (do (let [existing-frame (@frames frame-key)]
                     (if existing-frame
                       (do
@@ -56,19 +93,84 @@
       (-> frame s/pack! s/show!))
     (s/config! frame
                :content (s/border-panel
-                         :north (doto (s/label (str "   " frame-key))
-                                  (s/config! :background "#aabbcc"
-                                             :foreground "#334422"
-                                             :font (sf/font :name :monospaced
-                                                            :style #{:bold}
-                                                            :size 10)))
+                         :north (s/horizontal-panel :items
+                                                    (concat [(doto (s/label (str "  frame: " frame-key "   "))
+                                                               (s/config! :background "#ddeeff"
+                                                                          :foreground "#555555"
+                                                                          :font (sf/font :name "ARIAL"
+                                                                                         :style #{:bold}
+                                                                                         :size 21)))]
+                                                            (if controls
+                                                              [controls]
+                                                              ;;else
+                                                              [])))
                          :center content))))
 
+;; (sdisplay "frame-1"
+;;           (s/horizontal-panel
+;;            :items [(ChartPanel. (xy-plot (range 99) (map  #(Math/sin %)
+;;                                                           (range 99))))
+;;                    (ChartPanel. (scatter-plot (range 99) (range 99)))])
+;;           nil)
 
+(defn new-chart-panel-with-controls [chart]
+  (let [b (s/button :text "Auto Zoom")
+        chart-panel (doto (ChartPanel. chart)
+                      (.add b))]
+    (s/listen b :action
+            (fn [e] (.restoreAutoBounds chart-panel)))
+    chart-panel))
+
+(defn new-panel-with-chart-and-controls [chart]
+  (let [b (s/button :text "Auto Zoom")
+        chart-panel (ChartPanel. chart)]
+    (s/listen b :action
+              (fn [e] (.restoreAutoBounds chart-panel)))
+    (s/horizontal-panel :items
+                      [chart-panel
+                       b])))
+
+(defn new-chart-panel-and-controls [chart]
+  (let [b (s/button :text "Auto Zoom")
+        chart-panel (ChartPanel. chart)]
+    (s/listen b :action
+              (fn [e] (.restoreAutoBounds chart-panel)))
+    {:chart-panel chart-panel
+     :controls b}))
 
 
 (defn show-chart [chart]
-  (sdisplay 1 (ChartPanel. chart)))
+  (let [chart-panel-and-controls (new-chart-panel-and-controls chart)]
+    (sdisplay 1
+              (:chart-panel chart-panel-and-controls)
+              (:controls chart-panel-and-controls))))
+
+(defn show-charts [charts]
+  (sdisplay 1
+            (s/vertical-panel :items
+                              ;;(map new-panel-with-chart-and-controls
+                              ;;charts)
+                              (map #(ChartPanel. %)
+                                   charts))
+            nil))
+
+(defn scatter-plot-wrt-index [x]
+  (scatter-plot (range (count x))
+                x))
+
+(defn show-plot [x]
+  (show-chart (scatter-plot-wrt-index x)))
+
+
+
+
+
+
+
+
+
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -104,6 +206,20 @@
    (filter #(= (count %)
                (ncol adataset))
            (:rows adataset))))
+
+
+
+(defn transform-col-and-rename
+" Apply function f & args to the specified column of dataset, replace the column
+  with the resulting new values, and rename it to new-column."
+  [dataset column new-column f & args]
+  (->> (map #(apply update-in % [column] f args) (:rows dataset))
+    vec
+    (assoc dataset :rows)
+    (#(col-names % (replace
+                    {column new-column}
+                    (:column-names dataset))))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -153,10 +269,151 @@
                      :SmlEzorStatistiKtvtMegurimPUF
                      :TkufatSiyumBniyatDiraMchvPUF
                      :Hchns2008MbMchvPUF
-                     :KtvtLifney5ShanaMetropolinPUF]
+                     :KtvtLifney5ShanaMetropolinPUF
+                     :KtvtLifney5ShanaMachozMchvPUF]
                     nil))
+
+(def clean-d (transform-col
+              (transform-col
+               ($where {:Hchns2008MbMchvPUF {:$ne ""}} d)
+               :Hchns2008MbMchvPUF #(Integer/parseInt %))
+              :KtvtLifney5ShanaMetropolinPUF #(> (Integer/parseInt %) 12)))
+
+(dim d)
+(dim clean-d)
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+(->> ($where {:SmlYishuvPUF "5000"} d)
+     ($ [:KtvtLifney5ShanaMachozMchvPUF :KtvtLifney5ShanaMetropolinPUF])
+     :rows
+     freqs-as-rows
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     ($group-by :KtvtLifney5ShanaMetropolinPUF))
+
+
+(->> ($where {:SmlYishuvPUF "5000"} d)
+     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
+     :rows
+     freqs-as-rows
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     ($group-by :KtvtLifney5ShanaMetropolinPUF))
+
+(->> ($where {:SmlYishuvPUF "5000"} d)
+     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
+     :rows
+     freqs-as-rows
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
+
+(->> ($where {:SmlYishuvPUF "8300"} d)
+     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
+     :rows
+     freqs-as-rows
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
+
+(->> ($where {:SmlYishuvPUF "8300"} d)
+     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
+     :rows
+     freqs-as-rows
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
+
+
+(->> ($where {:SmlYishuvPUF "7900"} d)
+     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
+     :rows
+     freqs-as-rows
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
+
+
+(->> ($where {:SmlYishuvPUF "3000"} d)
+     ($ [:KtvtLifney5ShanaMachozMchvPUF :TkufatSiyumBniyatDiraMchvPUF])
+     :rows
+     freqs-as-rows
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
+
+
+
+(->> ($where {:TkufatSiyumBniyatDiraMchvPUF "9"} d)
+     ($ [:KtvtLifney5ShanaMachozMchvPUF :SmlYishuvPUF])
+     :rows
+     freqs-as-rows
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     ($group-by :SmlYishuvPUF)
+     )
+
+
+
+
+
+(->> (transform-col-and-rename clean-d
+                               :TkufatSiyumBniyatDiraMchvPUF
+                               :new-apt
+                               #(= % "9"))
+     ($ [:KtvtLifney5ShanaMachozMchvPUF :SmlYishuvPUF])
+     :rows
+     freqs-as-rows
+     (take 20)
+     ;;(filter #(< 50 (:count %)))
+     (map (fn [row] (conj (select-keys row [:count])
+                         (:val row))))
+     to-dataset
+     (#(map (fn [row]
+              (let [incomes ($ :Hchns2008MbMchvPUF
+                               ($where (dissoc row :count)
+                                       clean-d))]
+                (conj row
+                      {:median-income (median incomes)
+                       :mean-income (mean incomes)})))
+            (:rows %)))
+     to-dataset
+     ($group-by :SmlYishuvPUF)
+     )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+      (float (/ (nrow ($where {:Hchns2008MbMchvPUF {:$lt 12}} clean-d))
+                (nrow clean-d))) 
 
 (->>
  ($where {:SmlEzorStatistiKtvtMegurimPUF "235"} d)
@@ -164,15 +421,15 @@
  ($ [:KtvtLifney5ShanaMetropolinPUF
      :Hchns2008MbMchvPUF
      :TkufatSiyumBniyatDiraMchvPUF])
- (#(transform-col %
-                   :Hchns2008MbMchvPUF
-                   (fn [x] (> (Integer/parseInt x) 10))))
- (#(transform-col %
-                   :KtvtLifney5ShanaMetropolinPUF
-                   (fn [x] (> (Integer/parseInt x) 12))))
- (#(transform-col %
-                  :TkufatSiyumBniyatDiraMchvPUF
-                  (fn [x] (> (Integer/parseInt x) 7))))
+ (#(transform-col-and-rename %
+                             :Hchns2008MbMchvPUF :Hchns2008MbMchvPUF-gt12
+                             (fn [x] (> (Integer/parseInt x) 12))))
+ (#(transform-col-and-rename %
+                             :KtvtLifney5ShanaMetropolinPUF :KtvtLifney5ShanaMetropolinPUF-gt12
+                             (fn [x] (> (Integer/parseInt x) 12))))
+ (#(transform-col-and-rename %
+                             :TkufatSiyumBniyatDiraMchvPUF :TkufatSiyumBniyatDiraMchvPUF-gt7
+                             (fn [x] (> (Integer/parseInt x) 7))))
  :rows
  freqs-as-rows
  (map (fn [row] (conj (select-keys row [:count])
@@ -189,7 +446,7 @@
           (let [clean-dataset ($where {:Hchns2008MbMchvPUF {:$ne ""}} adataset)
                 freqs (->> (conj-cols (dataset [:new] (map (fn [x] (> (Integer/parseInt x) 12))
                                                                  ($ :KtvtLifney5ShanaMetropolinPUF clean-dataset)))
-                                            (dataset [:wealthy] (map (fn [x] (> (Integer/parseInt x) 10))
+                                            (dataset [:wealthy] (map (fn [x] (> (Integer/parseInt x) 12))
                                                                      ($ :Hchns2008MbMchvPUF clean-dataset))))
                                  :rows
                                  frequencies)
@@ -222,22 +479,25 @@
  show-chart
  )
 
+(defn obj-to-keyword [obj]
+  (keyword (clojure.string/replace (str obj)
+                                   #"[,|{|}|:| ]"
+                                   "-")))
+(obj-to-keyword {:a 3 :b 4})
+
+
 (->> (map #(apply conj %) distrib-by-sa)
      to-dataset
      filter-full
      (#(sel % :except-cols [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]))
-     (#(col-names % [:a :b :c :d]))
+     (#(col-names % (map obj-to-keyword (:column-names %))))
      scatter-plot-matrix
-     show-chart)
+     show-chart )
 
 
 (def cond-means-by-sa
   (fmap (fn [adataset]
-          (let [clean-dataset (transform-col
-                               (transform-col
-                                ($where {:Hchns2008MbMchvPUF {:$ne ""}} adataset)
-                                :Hchns2008MbMchvPUF #(Integer/parseInt %))
-                               :KtvtLifney5ShanaMetropolinPUF #(> (Integer/parseInt %) 12))
+          (let [clean-dataset clean-d
                 rollup-mean (:rows ($rollup mean :Hchns2008MbMchvPUF [:KtvtLifney5ShanaMetropolinPUF]
                                             clean-dataset))
                 cond-means {:mean-hchns-new (first (map :Hchns2008MbMchvPUF
@@ -274,6 +534,27 @@
                              (:mean-hchns-old row))})))
      to-dataset
      ($order [:quot] :asc)) 
+
+
+
+
+
+
+(def cond-means-by-sa
+  (fmap (fn [adataset]
+          (let [clean-dataset (transform-col
+                               (transform-col
+                                ($where {:Hchns2008MbMchvPUF {:$ne ""}} adataset)
+                                :Hchns2008MbMchvPUF #(Integer/parseInt %))
+                               :KtvtLifney5ShanaMetropolinPUF #(> (Integer/parseInt %) 12))
+                rollup-mean (:rows ($rollup mean :Hchns2008MbMchvPUF [:KtvtLifney5ShanaMetropolinPUF]
+                                            clean-dataset))
+                cond-means {:mean-hchns-new (first (map :Hchns2008MbMchvPUF
+                                                        (filter :KtvtLifney5ShanaMetropolinPUF rollup-mean)))
+                            :mean-hchns-old (first (map :Hchns2008MbMchvPUF
+                                                        (filter (complement :KtvtLifney5ShanaMetropolinPUF) rollup-mean)))}]
+            cond-means))
+          dataset-by-sa))
 
 
 
