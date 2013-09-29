@@ -23,6 +23,7 @@
 (import 'java.lang.Math)
 (require '[seesaw.core :as s])
 (require '[seesaw.font :as sf])
+(require '[clojure.core.reducers :as r])
 
 (require '[cemerick.pomegranate :as p])
 (defn add-classpath-with-println [jar]
@@ -220,6 +221,10 @@
                     {column new-column}
                     (:column-names dataset))))))
 
+(defn round3 [x]
+  (float (/ (Math/round (* x
+                           1000))
+            1000)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -368,29 +373,40 @@
 
 
 
-(->> (transform-col-and-rename clean-d
-                               :TkufatSiyumBniyatDiraMchvPUF
-                               :new-apt
-                               #(= % "9"))
-     ($ [:KtvtLifney5ShanaMachozMchvPUF :SmlYishuvPUF])
-     :rows
-     freqs-as-rows
-     (take 20)
-     ;;(filter #(< 50 (:count %)))
-     (map (fn [row] (conj (select-keys row [:count])
-                         (:val row))))
-     to-dataset
-     (#(map (fn [row]
-              (let [incomes ($ :Hchns2008MbMchvPUF
-                               ($where (dissoc row :count)
-                                       clean-d))]
-                (conj row
-                      {:median-income (median incomes)
-                       :mean-income (mean incomes)})))
-            (:rows %)))
-     to-dataset
-     ($group-by :SmlYishuvPUF)
-     )
+(def comparison
+  (let [;;;;
+        transformed-clean-d
+        (transform-col-and-rename clean-d
+                                  :TkufatSiyumBniyatDiraMchvPUF
+                                  :new-apt
+                                  #(= % "9"))
+        ;;;;
+        combinations
+        (->> transformed-clean-d
+             ($ [:KtvtLifney5ShanaMachozMchvPUF :SmlYishuvPUF :new-apt])
+             :rows
+             freqs-as-rows
+             ;;(filter #(< 20 (:count %)))
+             (map (fn [row] (conj (select-keys row [:count])
+                                 (:val row))))
+             )
+        ;;;;
+        combinations-with-measures
+        (into [] (r/map (fn [row]
+                          (let [incomes ($ :Hchns2008MbMchvPUF
+                                           ($where (dissoc row :count)
+                                                   transformed-clean-d))]
+                            (conj row
+                                  {:median-income (median incomes)
+                                   :mean-income (round3 (mean incomes))})))
+                        (r/filter
+                         identity
+                         ;;#(.endsWith (:SmlYishuvPUF %) "0")
+                         combinations)))]
+    ($order
+     [:SmlYishuvPUF :new-apt] :asc
+     (to-dataset combinations-with-measures))))
+;;($group-by [:SmlYishuvPUF :new-apt])
 
 
 
