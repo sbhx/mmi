@@ -32,7 +32,6 @@
     (p/add-classpath jar)))
 
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -275,7 +274,12 @@
                      :TkufatSiyumBniyatDiraMchvPUF
                      :Hchns2008MbMchvPUF
                      :KtvtLifney5ShanaMetropolinPUF
-                     :KtvtLifney5ShanaMachozMchvPUF]
+                     :KtvtLifney5ShanaMachozMchvPUF
+                     :RovaKtvtMegurimPUF
+                     :TatRovaKtvtMegurimPUF
+                     :EretzLeidaZkPUF
+                     :OleShnot90MchvPUF
+                     ]
                     nil))
 
 (def clean-d (transform-col
@@ -286,6 +290,29 @@
 
 (dim d)
 (dim clean-d)
+
+
+(defn put-Latin-around-Hebrew [s]
+  (if (re-matches #"(?s).*[אבגדהוזחטיכלמנסעפצקרשת].*" s)
+    (str "o " s " o")
+    s))
+
+
+(def from-yishuv-code-to-name
+  (-> "/home/we/workspace/data/yishuv-name-code.csv"
+      (read-dataset :header true)
+      (transform-col :name put-Latin-around-Hebrew)
+      :rows
+      (#(mapcat vals %))
+      (#(apply hash-map %))
+      ))
+
+
+;; http://www.thebusby.com/2012/07/tips-tricks-with-clojure-reducers.html
+(defn fold-into-vec [coll]
+  "Provided a reducer, concatenate into a vector.
+Note: same as (into [] coll), but parallel."
+  (r/fold (r/monoid into vector) conj coll))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -371,8 +398,6 @@
 
 
 
-
-
 (def comparison
   (let [;;;;
         transformed-clean-d
@@ -386,7 +411,7 @@
              ($ [:KtvtLifney5ShanaMachozMchvPUF :SmlYishuvPUF :new-apt])
              :rows
              freqs-as-rows
-             ;;(filter #(< 20 (:count %)))
+             (filter #(< 50 (:count %)))
              (map (fn [row] (conj (select-keys row [:count])
                                  (:val row))))
              )
@@ -400,17 +425,97 @@
                                   {:median-income (median incomes)
                                    :mean-income (round3 (mean incomes))})))
                         (r/filter
-                         identity
-                         ;;#(.endsWith (:SmlYishuvPUF %) "0")
+                         ;;identity
+                         #(.endsWith (:SmlYishuvPUF %) "00")
                          combinations)))]
     ($order
      [:SmlYishuvPUF :new-apt] :asc
      (to-dataset combinations-with-measures))))
 ;;($group-by [:SmlYishuvPUF :new-apt])
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 
+(defn comparison [sml-yishuv]
+  (let [;;;;
+        transformed-clean-d
+        (transform-col-and-rename
+         (transform-col-and-rename
+          ($where {:SmlYishuvPUF sml-yishuv} clean-d)
+          :TkufatSiyumBniyatDiraMchvPUF
+          :new-apt
+          #(if (= % "9")
+             "yes"
+             "-"))
+         :SmlYishuvPUF
+         :yishuv-name
+         #(from-yishuv-code-to-name (Integer/parseInt %))
+         )
+        ;;;;
+        combinations
+        (->> transformed-clean-d
+             ($ [:KtvtLifney5ShanaMachozMchvPUF
+                 :yishuv-name
+                 :RovaKtvtMegurimPUF
+                 :new-apt])
+             :rows
+             freqs-as-rows
+             ;;(filter #(< 50 (:count %)))
+             (map (fn [row] (conj (select-keys row [:count])
+                                 (:val row))))
+             )
+        ;;;;
+        combinations-with-measures
+        (fold-into-vec (r/map (fn [row]
+                                (let [incomes (flatten [($ :Hchns2008MbMchvPUF
+                                                            ($where (dissoc row :count)
+                                                                    transformed-clean-d))])]
+                                  (println (count incomes))
+                                  (conj row
+                                        {:median-income (median incomes)
+                                         :mean-income (round3 (mean incomes))})))
+                              combinations))]
+    ($order
+     [:SmlYishuvPUF :RovaKtvtMegurimPUF :new-apt] :asc
+     (to-dataset combinations-with-measures))))
+
+
+;;($group-by [:SmlYishuvPUF :new-apt])
+
+(->> d
+     ($where {:RovaKtvtMegurimPUF "2"
+              :SmlYishuvPUF "70"
+              :TkufatSiyumBniyatDiraMchvPUF "9"})
+     )
+
+(
+
+(->> clean-d
+     ($where {:RovaKtvtMegurimPUF "2"
+              :SmlYishuvPUF "70"
+              ;;:TkufatSiyumBniyatDiraMchvPUF "9"
+              })
+     ($ [:Hchns2008MbMchvPUF :EretzLeidaZkPUF :TkufatSiyumBniyatDiraMchvPUF])
+     ((fn [d1] (transform-col-and-rename
+               d1
+               :TkufatSiyumBniyatDiraMchvPUF
+               :new-apt
+               #(if (= % "9")
+                  "yes"
+                  "-"))))
+     ((fn [d1] (transform-col-and-rename
+               d1
+               :Hchns2008MbMchvPUF
+               :hcns-grp
+               #(int (/ % 7)))))
+     :rows
+     freqs-as-rows
+     to-dataset
+     )
+
+
+(save comparison "comparison.csv")
 
 
 
