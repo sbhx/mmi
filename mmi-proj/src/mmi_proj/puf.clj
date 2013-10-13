@@ -1,4 +1,4 @@
-(ns mmi-proj.analyse
+(ns mmi-proj.puf
   (:require quil.core
             quil.helpers.drawing
             quil.helpers.seqs
@@ -14,7 +14,8 @@
 (use '[clojure.java.shell :only [sh]])
 (use 'clojure.pprint)
 (import [java.net URL])
-(require '[clojure.data.csv :as csv])
+;;(require '[clojure.data.csv :as csv])
+(require 'clojure-csv.core)
 (require 'clojure.reflect)
 (import '[org.jfree.chart ChartPanel JFreeChart])
 (import '[javax.swing JComponent JLabel JPanel])
@@ -175,7 +176,8 @@
 (def puf-filename
   "/home/we/workspace/PUF 2008/H20081171Data.csv")
 
-(defn read-csv-cols-and-rows [filename]
+(defn read-cols-and-rows [filename & {:keys [seq-transformer]
+                                      :or {seq-transformer identity}}]
   (let [file-reader (clojure.java.io/reader filename)
         column-names (->> (.readLine file-reader)
                           (#(clojure.string/split % #","))
@@ -183,14 +185,17 @@
         ;; Note that the side effect of the last let-element
         ;; is that the file-reader has progressed to its 2nd
         ;; line.
-        rows-vals (csv/read-csv file-reader)
+        lines (seq-transformer (line-seq file-reader))
+        rows-vals (map (comp first clojure-csv.core/parse-csv)
+                       lines)
+        ;;rows-vals (csv/read-csv file-reader)
         rows (map (fn [row-vals]
                     (apply hash-map
                            (interleave column-names row-vals)))
-                  rows-vals)]
+                  (seq-transformer rows-vals))]
     {:column-names column-names
      :rows rows}))
--
+
 
 (defn transform-cols-and-rows
   [new-columns-fns cols-and-rows]
@@ -205,23 +210,38 @@
                                (keys new-columns-fns)))))
           (:rows cols-and-rows))})
 
+(defn take-cols-and-rows
+  [nrows cols-and-rows]
+  {:column-names (:column-names cols-and-rows)
+   :rows (take nrows (:rows cols-and-rows))})
 
-(defn read-csv-dataset [cols-and-rowvals column-names]
-  (let [column-indices (map #(.indexOf (:column-names
-                                        cols-and-rowvals) %)
-                            column-names)
-        restricted-rowvals (map (fn [row-vals]
-                                  (map (partial nth row-vals)
-                                       column-indices))
-                                (:rowvals
-                                 cols-and-rowvals))
-        dataset-rows (map (fn [row-vals]
-                            (apply hash-map
-                                   (interleave column-names row-vals)))
-                          restricted-rowvals)]
-    (dataset
-     column-names
-     dataset-rows)))
+(defn sample-from-cols-and-rows
+  [size cols-and-rows]
+  {:column-names (:column-names cols-and-rows)
+   :rows (sample (:rows cols-and-rows)
+                 :size size)})
+
+(defn cols-and-rows-to-dataset
+  [cols-and-rows]
+  (dataset (:column-names cols-and-rows)
+           (:rows cols-and-rows)))
+
+;; (defn read-csv-dataset [cols-and-rowvals column-names]
+;;   (let [column-indices (map #(.indexOf (:column-names
+;;                                         cols-and-rowvals) %)
+;;                             column-names)
+;;         restricted-rowvals (map (fn [row-vals]
+;;                                   (map (partial nth row-vals)
+;;                                        column-indices))
+;;                                 (:rowvals
+;;                                  cols-and-rowvals))
+;;         dataset-rows (map (fn [row-vals]
+;;                             (apply hash-map
+;;                                    (interleave column-names row-vals)))
+;;                           restricted-rowvals)]
+;;     (dataset
+;;      column-names
+;;      dataset-rows)))
 
 
 
@@ -274,9 +294,12 @@ Note: same as (into [] coll), but parallel."
       (println "_________________________________________________________")))
 
 
-(def pre-d
-  (read-csv-dataset puf-filename
-                    [:DiraNosefetAchrPUF
+(defn identity-map [aseq] 
+  (apply hash-map (interleave aseq aseq)))
+
+
+
+(def relevant-puf-columns [:DiraNosefetAchrPUF
                      :EretzLeidaZkPUF
                      :Hchns2008BrutoSachirPUF
                      :Hchns2008MbMchvPUF
@@ -309,7 +332,21 @@ Note: same as (into [] coll), but parallel."
                      :TelephonPUF
                      :TkufatSiyumBniyatDiraMchvPUF
                      :TzfifutDiurPUF
-                     :TzuratAchzakatDira2008MchvPUF ]
+                     :TzuratAchzakatDira2008MchvPUF ])
+
+(defn get-all-relevant-cols-and-rows []
+  (->> puf-filename
+       read-cols-and-rows
+       (transform-cols-and-rows (identity-map relevant-puf-columns))))
+
+(defn get-all-relevant-cols-and-some-rows [seq-transformer]
+  (transform-cols-and-rows (identity-map relevant-puf-columns)
+                           (read-cols-and-rows puf-filename
+                                               :seq-transformer seq-transformer)))
+
+(def pre-d
+  (read-csv-dataset puf-filename
+                    
                     nil))
 
 (map (fn [col-name]
