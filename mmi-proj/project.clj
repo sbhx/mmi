@@ -19,10 +19,11 @@
                  [me.raynes/fs "1.4.4"]
                  [net.mikera/core.matrix "0.7.2"]
                  [org.clojure/data.csv "0.1.2"]
+                 [clojure-csv/clojure-csv "2.0.1"]
                  [com.nuroko/nurokit "0.0.3"]
                  [org.clojure/algo.generic "0.1.1"]
                  [seesaw "1.4.3"]
                  [com.cemerick/pomegranate "0.2.0"]]
-  :main mmi-proj.core
+  ;;:main mmi-proj.puf
   :jvm-opts ["-Xmx6g"] )
 
