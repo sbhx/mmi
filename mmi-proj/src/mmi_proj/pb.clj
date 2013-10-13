@@ -23,7 +23,7 @@
 (import 'java.lang.Math)
 (require '[seesaw.core :as s])
 (require '[seesaw.font :as sf])
-
+ 
 (require '[cemerick.pomegranate :as p])
 (defn add-classpath-with-println [jar]
   (do
@@ -31,62 +31,62 @@
     (p/add-classpath jar)))
 
 
-(add-classpath-with-println "lib/org.csstudio.swt.widgets_2.2.0.201308141544.jar")
-(add-classpath-with-println "lib/org.csstudio.swt.xygraph_2.2.0.201308141544.jar")
-(add-classpath-with-println "lib/org.eclipse.core.commands_3.6.0.I20110111-0800.jar")
-(add-classpath-with-println "lib/org.eclipse.draw2d_3.7.2.v20111017-2020.jar")
-(add-classpath-with-println "lib/org.eclipse.equinox.common_3.6.0.v20110523.jar")
-(add-classpath-with-println "lib/org.eclipse.jface_3.7.0.I20110522-1430.jar")
-(add-classpath-with-println "lib/org.eclipse.swt_3.7.1.v3738a.jar")
-(add-classpath-with-println "lib/org.eclipse.swt.gtk.linux.x86_64_3.7.1.v3738a.jar")
-(add-classpath-with-println "lib/org.eclipse.swt.win32.win32.x86_64_3.100.0.v4233d.jar")
-(add-classpath-with-println "lib/SWT_XYGraph_Examples_linux_x86_64.jar")
+;; (add-classpath-with-println "lib/org.csstudio.swt.widgets_2.2.0.201308141544.jar")
+;; (add-classpath-with-println "lib/org.csstudio.swt.xygraph_2.2.0.201308141544.jar")
+;; (add-classpath-with-println "lib/org.eclipse.core.commands_3.6.0.I20110111-0800.jar")
+;; (add-classpath-with-println "lib/org.eclipse.draw2d_3.7.2.v20111017-2020.jar")
+;; (add-classpath-with-println "lib/org.eclipse.equinox.common_3.6.0.v20110523.jar")
+;; (add-classpath-with-println "lib/org.eclipse.jface_3.7.0.I20110522-1430.jar")
+;; (add-classpath-with-println "lib/org.eclipse.swt_3.7.1.v3738a.jar")
+;; (add-classpath-with-println "lib/org.eclipse.swt.gtk.linux.x86_64_3.7.1.v3738a.jar")
+;; (add-classpath-with-println "lib/org.eclipse.swt.win32.win32.x86_64_3.100.0.v4233d.jar")
+;; (add-classpath-with-println "lib/SWT_XYGraph_Examples_linux_x86_64.jar")
 
-(import 'org.csstudio.swt.xygraph.dataprovider.CircularBufferDataProvider)
-(import 'org.csstudio.swt.xygraph.figures.ToolbarArmedXYGraph)
-(import 'org.csstudio.swt.xygraph.figures.Trace)        
-(import 'org.csstudio.swt.xygraph.figures.Trace$PointStyle)
-(import 'org.csstudio.swt.xygraph.figures.XYGraph)
-(import 'org.eclipse.draw2d.LightweightSystem)
-(import 'org.eclipse.swt.widgets.Display)
-(import 'org.eclipse.swt.widgets.Shell)
+;; (import 'org.csstudio.swt.xygraph.dataprovider.CircularBufferDataProvider)
+;; (import 'org.csstudio.swt.xygraph.figures.ToolbarArmedXYGraph)
+;; (import 'org.csstudio.swt.xygraph.figures.Trace)        
+;; (import 'org.csstudio.swt.xygraph.figures.Trace$PointStyle)
+;; (import 'org.csstudio.swt.xygraph.figures.XYGraph)
+;; (import 'org.eclipse.draw2d.LightweightSystem)
+;; (import 'org.eclipse.swt.widgets.Display)
+;; (import 'org.eclipse.swt.widgets.Shell)
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; http://swt-xy-graph.googlecode.com/git/PureJava/org.csstudio.swt.xygraph/examples/SimpleToolbarArmedXYGraphExample.java
-(def shell (doto (Shell.)
-             (.setSize 600 400)
-             (.open)))
-;;use LightweightSystem to create the bridge between SWT and draw2D
-(def lws (LightweightSystem. shell))
-;;create a new XY Graph.
-(def xy-graph (doto (XYGraph.)
-                (.setTitle "Simple Toolbar Armed XYGraph Example")))
-(def toolbar-armed-xy-graph (ToolbarArmedXYGraph. xy-graph))
-;;set it as the content of LightwightSystem
-(.setContents lws toolbar-armed-xy-graph)
-(.setShowMajorGrid (.primaryXAxis xy-graph)
-                   true)
-(.setShowMajorGrid (.primaryYAxis xy-graph)
-                                     true)
-;;create a trace data provider, which will provide the data to the trace.
-(def trace-data-provider (doto (CircularBufferDataProvider. false)
-                           (.setBufferSize 100)
-                           (.setCurrentXDataArray (double-array [10, 23, 34, 45, 56, 78, 88, 99]))
-                           (.setCurrentYDataArray (double-array [11, 44, 55, 45, 88, 98, 52, 23]))))
-;;create the trace and set trace property
-(def the-trace (doto (Trace. "Trace1-XY Plot" 
-                             (.primaryXAxis xy-graph)
-                             (.primaryYAxis xy-graph)
-                             trace-data-provider)
-                 (.setPointStyle org.csstudio.swt.xygraph.figures.Trace$PointStyle/XCROSS)))
-;;add the trace to xyGraph
-(.addTrace xy-graph the-trace)
-(def the-display (Display/getDefault))	   
-(while (not (.isDisposed shell))
-  (when (not (.readAndDispatch the-display))
-    (.sleep the-display)))
+;; ;; http://swt-xy-graph.googlecode.com/git/PureJava/org.csstudio.swt.xygraph/examples/SimpleToolbarArmedXYGraphExample.java
+;; (def shell (doto (Shell.)
+;;              (.setSize 600 400)
+;;              (.open)))
+;; ;;use LightweightSystem to create the bridge between SWT and draw2D
+;; (def lws (LightweightSystem. shell))
+;; ;;create a new XY Graph.
+;; (def xy-graph (doto (XYGraph.)
+;;                 (.setTitle "Simple Toolbar Armed XYGraph Example")))
+;; (def toolbar-armed-xy-graph (ToolbarArmedXYGraph. xy-graph))
+;; ;;set it as the content of LightwightSystem
+;; (.setContents lws toolbar-armed-xy-graph)
+;; (.setShowMajorGrid (.primaryXAxis xy-graph)
+;;                    true)
+;; (.setShowMajorGrid (.primaryYAxis xy-graph)
+;;                                      true)
+;; ;;create a trace data provider, which will provide the data to the trace.
+;; (def trace-data-provider (doto (CircularBufferDataProvider. false)
+;;                            (.setBufferSize 100)
+;;                            (.setCurrentXDataArray (double-array [10, 23, 34, 45, 56, 78, 88, 99]))
+;;                            (.setCurrentYDataArray (double-array [11, 44, 55, 45, 88, 98, 52, 23]))))
+;; ;;create the trace and set trace property
+;; (def the-trace (doto (Trace. "Trace1-XY Plot" 
+;;                              (.primaryXAxis xy-graph)
+;;                              (.primaryYAxis xy-graph)
+;;                              trace-data-provider)
+;;                  (.setPointStyle org.csstudio.swt.xygraph.figures.Trace$PointStyle/XCROSS)))
+;; ;;add the trace to xyGraph
+;; (.addTrace xy-graph the-trace)
+;; (def the-display (Display/getDefault))	   
+;; (while (not (.isDisposed shell))
+;;   (when (not (.readAndDispatch the-display))
+;;     (.sleep the-display)))
 
 
 
@@ -280,8 +280,6 @@
   :date
   :log-price-per-net-area
   :data ($where {:net_area {:gt 0}} d)))
-
-
           (show-chart 
            (scatter-plot
             :date
