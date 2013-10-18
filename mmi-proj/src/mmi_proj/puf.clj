@@ -314,7 +314,8 @@ Note: same as (into [] coll), but parallel."
                      :KayamVideoDvdPUF
                      :KtvtLifney5ShanaMachozMchvPUF
                      :KtvtLifney5ShanaMetropolinPUF
-                     :MspChadarimPUF
+                           ;; HERE
+                           :MspChadarimPUF
                      :MspChdshAvdShana2008PUF
                      :MspShaotAvdShavuaPUF
                      :MspSherutimPUF
@@ -334,6 +335,8 @@ Note: same as (into [] coll), but parallel."
                      :TzfifutDiurPUF
                      :TzuratAchzakatDira2008MchvPUF ])
 
+
+
 (defn get-all-relevant-cols-and-rows []
   (->> puf-filename
        read-cols-and-rows
@@ -344,9 +347,92 @@ Note: same as (into [] coll), but parallel."
                            (read-cols-and-rows puf-filename
                                                :seq-transformer seq-transformer)))
 
+(defn freqs [col-name & {:keys [sample-size]
+                         :or {sample-size 100}}]
+  (->> (read-cols-and-rows puf-filename
+                           :seq-transformer #(sample % :size sample-size))
+       (transform-cols-and-rows (identity-map [col-name]))
+       :rows
+       (map (comp first vals))
+       frequencies
+       pprint))
+
+
+;; (def sample1
+;;   (->> (read-cols-and-rows puf-filename
+;;                            :seq-transformer #(sample % :size 1000))
+;;        (transform-cols-and-rows (identity-map [:KayamMachshevPUF
+;;                                                :KayamMazganPUF
+;;                                                :KayamMediachKelimPUF
+;;                                                :KayamMeyabeshKvisaPUF
+;;                                                :KayamMicrogalPUF
+;;                                                :KayamTvPUF
+;;                                                :KayamVideoDvdPUF]))
+;;        :rows))
+;; (to-dataset
+;;  (for [c (keys (first sample1))]
+;;    (conj {:name (name c)}
+;;          (frequencies (map c sample1)))))
+
+
+(defn specific-val-to-1-others-to-0 [specific-val]
+  #(if (= specific-val %)
+     1 0))
+
+(defn parse-int-or-null [string]
+  (try (Integer/parseInt string)
+                   (catch NumberFormatException e
+                          (do (println (str "warning: NumberFormatException "
+                                            (.getMessage e))))
+                          nil)))
+
+
+(->> (read-cols-and-rows puf-filename
+                         :seq-transformer (partial take 2))
+     (transform-cols-and-rows
+      (conj (identity-map [:EretzLeidaZkPUF
+                           :KtvtLifney5ShanaMachozMchvPUF
+                           :KtvtLifney5ShanaMetropolinPUF
+                           ]
+                          )
+            {
+             :Hchns2008BrutoSachirPUF-int (comp parse-int-or-null :Hchns2008BrutoSachirPUF)
+             :Hchns2008MbMchvPUF-int (comp parse-int-or-null :Hchns2008MbMchvPUF)
+             :DiraNosefetAchrPUF=1 (comp (specific-val-to-1-others-to-0 "1")
+                                         :DiraNosefetAchrPUF=1)
+             :KayamMachshevPUF (comp (specific-val-to-1-others-to-0 "1")
+                                     :KayamMachshevPUF)
+             :KayamMazganPUF (comp (specific-val-to-1-others-to-0 "1")
+                                   :KayamMazganPUF)
+             :KayamMediachKelimPUF (comp (specific-val-to-1-others-to-0 "1")
+                                         :KayamMediachKelimPUF)
+             :KayamMeyabeshKvisaPUF (comp (specific-val-to-1-others-to-0 "1")
+                                          :KayamMeyabeshKvisaPUF)
+             :KayamMicrogalPUF (comp (specific-val-to-1-others-to-0 "1")
+                                     :KayamMicrogalPUF)
+             :KayamTvPUF (comp (specific-val-to-1-others-to-0 "1")
+                               :KayamTvPUF)
+             :KayamVideoDvdPUF (comp (specific-val-to-1-others-to-0 "1")
+                                     :KayamVideoDvdPUF)
+             ;;
+             :tzfifutdiurpuf :TzfifutDiurPUF})
+      )
+     ;;
+     pprint
+     ;;cols-and-rows-to-dataset
+     )
+
+
 (def pre-d
+  (->> puf-filename
+       read-cols-and-rows
+       (transform-cols-and-rows
+        
+
+        )
+       cols-and-rows-to-dataset)
+
   (read-csv-dataset puf-filename
-                    
                     nil))
 
 (map (fn [col-name]
