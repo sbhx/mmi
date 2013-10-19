@@ -300,40 +300,39 @@ Note: same as (into [] coll), but parallel."
 
 
 (def relevant-puf-columns [:DiraNosefetAchrPUF
-                     :EretzLeidaZkPUF
-                     :Hchns2008BrutoSachirPUF
-                     :Hchns2008MbMchvPUF
-                     :KayamDudShemeshPUF
-                     :KayamInternetPUF
-                     :KayamMachshevPUF
-                     :KayamMazganPUF
-                     :KayamMediachKelimPUF
-                     :KayamMeyabeshKvisaPUF
-                     :KayamMicrogalPUF
-                     :KayamTvPUF
-                     :KayamVideoDvdPUF
-                     :KtvtLifney5ShanaMachozMchvPUF
-                     :KtvtLifney5ShanaMetropolinPUF
-                           ;; HERE
+                           :EretzLeidaZkPUF
+                           :Hchns2008BrutoSachirPUF
+                           :Hchns2008MbMchvPUF
+                           :KayamDudShemeshPUF
+                           :KayamInternetPUF
+                           :KayamMachshevPUF
+                           :KayamMazganPUF
+                           :KayamMediachKelimPUF
+                           :KayamMeyabeshKvisaPUF
+                           :KayamMicrogalPUF
+                           :KayamTvPUF
+                           :KayamVideoDvdPUF
+                           :KtvtLifney5ShanaMachozMchvPUF
+                           :KtvtLifney5ShanaMetropolinPUF
                            :MspChadarimPUF
-                     :MspChdshAvdShana2008PUF
-                     :MspShaotAvdShavuaPUF
-                     :MspSherutimPUF
-                     :MspShnotLimudZkPUF
-                     :NefashotMeshekBayitPUF
-                     :OleShnot90MchvPUF
-                     :RchvPUF
-                     :RovaKtvtMegurimPUF
-                     :SmlAnafKalkaliPUF
-                     :SmlEzorStatistiKtvtMegurimPUF
-                     :SmlMishlachYadPUF
-                     :SmlYishuvPUF
-                     :TatRovaKtvtMegurimPUF
-                     :TelephonNayadPUF
-                     :TelephonPUF
-                     :TkufatSiyumBniyatDiraMchvPUF
-                     :TzfifutDiurPUF
-                     :TzuratAchzakatDira2008MchvPUF ])
+                           ;; problematic? :MspChdshAvdShana2008PUF
+                           ;; problematic? :MspShaotAvdShavuaPUF
+                           :MspSherutimPUF
+                           :MspShnotLimudZkPUF
+                           :NefashotMeshekBayitPUF
+                           :OleShnot90MchvPUF
+                           :RchvPUF
+                           :RovaKtvtMegurimPUF
+                           :SmlAnafKalkaliPUF
+                           :SmlEzorStatistiKtvtMegurimPUF
+                           :SmlMishlachYadPUF
+                           :SmlYishuvPUF
+                           :TatRovaKtvtMegurimPUF
+                           :TelephonNayadPUF
+                           :TelephonPUF
+                           :TkufatSiyumBniyatDiraMchvPUF
+                           :TzfifutDiurPUF
+                           :TzuratAchzakatDira2008MchvPUF ])
 
 
 
@@ -349,13 +348,14 @@ Note: same as (into [] coll), but parallel."
 
 (defn freqs [col-name & {:keys [sample-size]
                          :or {sample-size 100}}]
-  (->> (read-cols-and-rows puf-filename
-                           :seq-transformer #(sample % :size sample-size))
-       (transform-cols-and-rows (identity-map [col-name]))
-       :rows
-       (map (comp first vals))
-       frequencies
-       pprint))
+  (future (->> (read-cols-and-rows puf-filename
+                                    :seq-transformer #(sample % :size sample-size))
+                (transform-cols-and-rows (identity-map [col-name]))
+                :rows
+                (map (comp first vals))
+                frequencies
+                (into (sorted-map))
+                (#(pprint {col-name %})))))
 
 
 ;; (def sample1
@@ -379,48 +379,118 @@ Note: same as (into [] coll), but parallel."
   #(if (= specific-val %)
      1 0))
 
-(defn parse-int-or-null [string]
+(defn specific-vals-to-1-others-to-0 [specific-vals-set]
+  #(if (specific-vals-set %)
+     1 0))
+
+(defn threshold-to-nil [threshold]
+  #(if (<= threshold %)
+     nil %))
+
+(defn parse-int-or-nil [string]
   (try (Integer/parseInt string)
                    (catch NumberFormatException e
-                          (do (println (str "warning: NumberFormatException "
-                                            (.getMessage e))))
-                          nil)))
+                          (do 
+                            ;; (println (str "warning: NumberFormatException "
+                            ;;               (.getMessage e)
+                            nil))))
 
+(def regular-int-or-nil (comp (threshold-to-nil 90)
+                              parse-int-or-nil))
+
+
+(def standard-column-fns (conj (identity-map [:EretzLeidaZkPUF
+                                              :KtvtLifney5ShanaMachozMchvPUF
+                                              :KtvtLifney5ShanaMetropolinPUF
+                                              :OleShnot90MchvPUF
+                                              :RovaKtvtMegurimPUF
+                                              :TatRovaKtvtMegurimPUF
+                                              :SmlAnafKalkaliPUF ;; TODO: transform this
+                                              :SmlEzorStatistiKtvtMegurimPUF
+                                              :SmlMishlachYadPUF ;; TODO: transform this
+                                              :SmlYishuvPUF
+                                              :TkufatSiyumBniyatDiraMchvPUF
+                                              ]
+                                             )
+                               {:Hchns2008BrutoSachirPUF-int (comp parse-int-or-nil :Hchns2008BrutoSachirPUF)
+                                :Hchns2008MbMchvPUF-int (comp parse-int-or-nil :Hchns2008MbMchvPUF)
+                                :DiraNosefetAchrPUF=1 (comp (specific-val-to-1-others-to-0 "1")
+                                                            :DiraNosefetAchrPUF=1)
+                                :KayamMachshevPUF (comp (specific-val-to-1-others-to-0 "1")
+                                                        :KayamMachshevPUF)
+                                :KayamMazganPUF (comp (specific-val-to-1-others-to-0 "1")
+                                                      :KayamMazganPUF)
+                                :KayamMediachKelimPUF (comp (specific-val-to-1-others-to-0 "1")
+                                                            :KayamMediachKelimPUF)
+                                :KayamMeyabeshKvisaPUF (comp (specific-val-to-1-others-to-0 "1")
+                                                             :KayamMeyabeshKvisaPUF)
+                                :KayamMicrogalPUF (comp (specific-val-to-1-others-to-0 "1")
+                                                        :KayamMicrogalPUF)
+                                :KayamTvPUF (comp (specific-val-to-1-others-to-0 "1")
+                                                  :KayamTvPUF)
+                                :KayamVideoDvdPUF (comp (specific-val-to-1-others-to-0 "1")
+                                                        :KayamVideoDvdPUF)
+                                :MspChadarimPUF-reg (comp regular-int-or-nil
+                                                          :MspChadarimPUF)
+                                :MspSherutimPUF-reg (comp regular-int-or-nil
+                                                          :MspSherutimPUF)
+                                :MspShnotLimudZkPUF-reg (comp regular-int-or-nil
+                                                              :MspShnotLimudZkPUF)
+                                ;; so we will filter out ages 0-14!
+                                :NefashotMeshekBayitPUF-reg (comp regular-int-or-nil
+                                                                  :MspShnotLimudZkPUF)
+                                :RchvPUF-reg (comp regular-int-or-nil
+                                                   :RchvPUF)
+                                :TelephonNayadPUF-reg (comp regular-int-or-nil
+                                                            :TelephonNayadPUF)
+                                :TelephonPUF-reg (comp regular-int-or-nil
+                                                       :TelephonPUF)
+                                :new-apt (comp (specific-val-to-1-others-to-0 "9")
+                                               :TkufatSiyumBniyatDiraMchvPUF)
+                                ;; Note redundancy of information with
+                                ;; the column :TkufatSiyumBniyatDiraMchvPUF
+                                :TzfifutDiurPUF-reg (comp regular-int-or-nil
+                                                          :TzfifutDiurPUF)
+                                :apt-owned-by-family (comp (specific-vals-to-1-others-to-0 #{"1" "4"})
+                                                           :TzuratAchzakatDira2008MchvPUF)}))
+
+
+(def pca-columns [:Hchns2008MbMchvPUF-int
+                  :Hchns2008BrutoSachirPUF-int
+                  :MspShnotLimudZkPUF-reg
+                  :RchvPUF-reg
+                  :DiraNosefetAchrPUF=1
+                  ;; :MspSherutimPUF-reg
+                  :KayamMachshevPUF
+                  ;; :MspChadarimPUF-reg
+                  :TelephonPUF-reg
+                  :KayamTvPUF
+                  :KayamMicrogalPUF
+                  :KayamMediachKelimPUF
+                  :TelephonNayadPUF-reg
+                  ;; :TzfifutDiurPUF-reg
+                  :KayamVideoDvdPUF
+                  :KayamMeyabeshKvisaPUF
+                  :KayamMazganPUF
+                  :apt-owned-by-family
+                  ;; relevant? :NefashotMeshekBayitPUF-reg
+                  ;; :SmlAnafKalkaliPUF ;; TODO: transform this
+                  ;; :SmlMishlachYadPUF ;; TODO: transform this
+                  ] )
+;; NOTE: Avoiding home-related vars to avoid interaction with :new-apt.
 
 (->> (read-cols-and-rows puf-filename
-                         :seq-transformer (partial take 2))
+                         :seq-transformer #(sample % :size 10000) ;;(partial take 1000)
+                         )
      (transform-cols-and-rows
-      (conj (identity-map [:EretzLeidaZkPUF
-                           :KtvtLifney5ShanaMachozMchvPUF
-                           :KtvtLifney5ShanaMetropolinPUF
-                           ]
-                          )
-            {
-             :Hchns2008BrutoSachirPUF-int (comp parse-int-or-null :Hchns2008BrutoSachirPUF)
-             :Hchns2008MbMchvPUF-int (comp parse-int-or-null :Hchns2008MbMchvPUF)
-             :DiraNosefetAchrPUF=1 (comp (specific-val-to-1-others-to-0 "1")
-                                         :DiraNosefetAchrPUF=1)
-             :KayamMachshevPUF (comp (specific-val-to-1-others-to-0 "1")
-                                     :KayamMachshevPUF)
-             :KayamMazganPUF (comp (specific-val-to-1-others-to-0 "1")
-                                   :KayamMazganPUF)
-             :KayamMediachKelimPUF (comp (specific-val-to-1-others-to-0 "1")
-                                         :KayamMediachKelimPUF)
-             :KayamMeyabeshKvisaPUF (comp (specific-val-to-1-others-to-0 "1")
-                                          :KayamMeyabeshKvisaPUF)
-             :KayamMicrogalPUF (comp (specific-val-to-1-others-to-0 "1")
-                                     :KayamMicrogalPUF)
-             :KayamTvPUF (comp (specific-val-to-1-others-to-0 "1")
-                               :KayamTvPUF)
-             :KayamVideoDvdPUF (comp (specific-val-to-1-others-to-0 "1")
-                                     :KayamVideoDvdPUF)
-             ;;
-             :tzfifutdiurpuf :TzfifutDiurPUF})
+      new-columns-fns
       )
      ;;
-     pprint
-     ;;cols-and-rows-to-dataset
-     )
+     ;;pprint
+     ;;:rows
+     ;;(map :MspChadarimPUF<=9)
+     cols-and-rows-to-dataset
+     head)
 
 
 (def pre-d
