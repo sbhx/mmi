@@ -456,7 +456,7 @@ Note: same as (into [] coll), but parallel."
 
 
 (def pca-columns [:Hchns2008MbMchvPUF-int
-                  :Hchns2008BrutoSachirPUF-int
+                  ;; too many missing values? :Hchns2008BrutoSachirPUF-int
                   :MspShnotLimudZkPUF-reg
                   :RchvPUF-reg
                   :DiraNosefetAchrPUF=1
@@ -476,21 +476,42 @@ Note: same as (into [] coll), but parallel."
                   ;; relevant? :NefashotMeshekBayitPUF-reg
                   ;; :SmlAnafKalkaliPUF ;; TODO: transform this
                   ;; :SmlMishlachYadPUF ;; TODO: transform this
-                  ] )
+                  ])
 ;; NOTE: Avoiding home-related vars to avoid interaction with :new-apt.
+
+;; TODO: Remove duplicate versions of this fn in different files.
+(defn filter-all-nonnil [adataset]
+  (to-dataset
+   (filter #(reduce and-func
+                    (vals %))
+           (:rows adataset))))
+
 
 (->> (read-cols-and-rows puf-filename
                          :seq-transformer #(sample % :size 10000) ;;(partial take 1000)
                          )
      (transform-cols-and-rows
-      new-columns-fns
-      )
+      standard-column-fns)
      ;;
      ;;pprint
      ;;:rows
      ;;(map :MspChadarimPUF<=9)
      cols-and-rows-to-dataset
      head)
+
+
+(let [data-for-pca (->> (read-cols-and-rows puf-filename
+                                            :seq-transformer #(sample % :size 1000)
+                                            ;;(partial take 1000)
+                                            )
+                        (transform-cols-and-rows
+                         (select-keys standard-column-fns pca-columns))
+                        cols-and-rows-to-dataset
+                        filter-all-nonnil
+                        to-matrix)
+      pca (principal-components data-for-pca)]
+  )
+
 
 
 (def pre-d
