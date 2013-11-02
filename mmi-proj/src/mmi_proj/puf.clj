@@ -127,12 +127,6 @@
             ;; else
             :other))))
 
-;; (=
-;;  (map (leave-only-nil-and-values-of-set #{4 "A"})
-;;       [3 nil 3 4 "a" 1 "A" nil "A" 132])
-;;  [:other nil :other 4 :other :other "A" nil "A" :other])
-
-
 (defn freqs-as-rows [x]
   (map #(hash-map :val (first %) :count (second %))
        (sort-by (comp  - second) (frequencies x))))
@@ -225,24 +219,6 @@
   [cols-and-rows]
   (dataset (:column-names cols-and-rows)
            (:rows cols-and-rows)))
-
-;; (defn read-csv-dataset [cols-and-rowvals column-names]
-;;   (let [column-indices (map #(.indexOf (:column-names
-;;                                         cols-and-rowvals) %)
-;;                             column-names)
-;;         restricted-rowvals (map (fn [row-vals]
-;;                                   (map (partial nth row-vals)
-;;                                        column-indices))
-;;                                 (:rowvals
-;;                                  cols-and-rowvals))
-;;         dataset-rows (map (fn [row-vals]
-;;                             (apply hash-map
-;;                                    (interleave column-names row-vals)))
-;;                           restricted-rowvals)]
-;;     (dataset
-;;      column-names
-;;      dataset-rows)))
-
 
 
 (defn put-Latin-around-Hebrew [s]
@@ -358,23 +334,6 @@ Note: same as (into [] coll), but parallel."
                 (#(pprint {col-name %})))))
 
 
-;; (def sample1
-;;   (->> (read-cols-and-rows puf-filename
-;;                            :seq-transformer #(sample % :size 1000))
-;;        (transform-cols-and-rows (identity-map [:KayamMachshevPUF
-;;                                                :KayamMazganPUF
-;;                                                :KayamMediachKelimPUF
-;;                                                :KayamMeyabeshKvisaPUF
-;;                                                :KayamMicrogalPUF
-;;                                                :KayamTvPUF
-;;                                                :KayamVideoDvdPUF]))
-;;        :rows))
-;; (to-dataset
-;;  (for [c (keys (first sample1))]
-;;    (conj {:name (name c)}
-;;          (frequencies (map c sample1)))))
-
-
 (defn specific-val-to-1-others-to-0 [specific-val]
   #(if (= specific-val %)
      1 0))
@@ -485,19 +444,6 @@ Note: same as (into [] coll), but parallel."
    (filter #(reduce and-func
                     (vals %))
            (:rows adataset))))
-
-
-;; (->> (read-cols-and-rows puf-filename
-;;                          :seq-transformer #(sample % :size 10000) ;;(partial take 1000)
-;;                          )
-;;      (transform-cols-and-rows
-;;       standard-column-fns)
-;;      ;;
-;;      ;;pprint
-;;      ;;:rows
-;;      ;;(map :MspChadarimPUF<=9)
-;;      cols-and-rows-to-dataset
-;;      head)
 
 
 (def pca-result
