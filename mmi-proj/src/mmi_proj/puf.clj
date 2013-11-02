@@ -358,60 +358,61 @@ Note: same as (into [] coll), but parallel."
                               parse-int-or-nil))
 
 
-(def standard-column-fns (conj (identity-map [:EretzLeidaZkPUF
-                                              :KtvtLifney5ShanaMachozMchvPUF
-                                              :KtvtLifney5ShanaMetropolinPUF
-                                              :OleShnot90MchvPUF
-                                              :RovaKtvtMegurimPUF
-                                              :TatRovaKtvtMegurimPUF
-                                              :SmlAnafKalkaliPUF ;; TODO: transform this
-                                              :SmlEzorStatistiKtvtMegurimPUF
-                                              :SmlMishlachYadPUF ;; TODO: transform this
-                                              :SmlYishuvPUF
-                                              :TkufatSiyumBniyatDiraMchvPUF
-                                              ]
-                                             )
-                               {:Hchns2008BrutoSachirPUF-int (comp parse-int-or-nil :Hchns2008BrutoSachirPUF)
-                                :Hchns2008MbMchvPUF-int (comp parse-int-or-nil :Hchns2008MbMchvPUF)
-                                :DiraNosefetAchrPUF=1 (comp (specific-val-to-1-others-to-0 "1")
-                                                            :DiraNosefetAchrPUF)
-                                :KayamMachshevPUF (comp (specific-val-to-1-others-to-0 "1")
-                                                        :KayamMachshevPUF)
-                                :KayamMazganPUF (comp (specific-val-to-1-others-to-0 "1")
-                                                      :KayamMazganPUF)
-                                :KayamMediachKelimPUF (comp (specific-val-to-1-others-to-0 "1")
-                                                            :KayamMediachKelimPUF)
-                                :KayamMeyabeshKvisaPUF (comp (specific-val-to-1-others-to-0 "1")
-                                                             :KayamMeyabeshKvisaPUF)
-                                :KayamMicrogalPUF (comp (specific-val-to-1-others-to-0 "1")
-                                                        :KayamMicrogalPUF)
-                                :KayamTvPUF (comp (specific-val-to-1-others-to-0 "1")
-                                                  :KayamTvPUF)
-                                :KayamVideoDvdPUF (comp (specific-val-to-1-others-to-0 "1")
-                                                        :KayamVideoDvdPUF)
-                                :MspChadarimPUF-reg (comp regular-int-or-nil
-                                                          :MspChadarimPUF)
-                                :MspSherutimPUF-reg (comp regular-int-or-nil
-                                                          :MspSherutimPUF)
-                                :MspShnotLimudZkPUF-reg (comp regular-int-or-nil
-                                                              :MspShnotLimudZkPUF)
-                                ;; so we will filter out ages 0-14!
-                                :NefashotMeshekBayitPUF-reg (comp regular-int-or-nil
-                                                                  :MspShnotLimudZkPUF)
-                                :RchvPUF-reg (comp regular-int-or-nil
-                                                   :RchvPUF)
-                                :TelephonNayadPUF-reg (comp regular-int-or-nil
-                                                            :TelephonNayadPUF)
-                                :TelephonPUF-reg (comp regular-int-or-nil
-                                                       :TelephonPUF)
-                                :new-apt (comp (specific-val-to-1-others-to-0 "9")
-                                               :TkufatSiyumBniyatDiraMchvPUF)
-                                ;; Note redundancy of information with
-                                ;; the column :TkufatSiyumBniyatDiraMchvPUF
-                                :TzfifutDiurPUF-reg (comp regular-int-or-nil
-                                                          :TzfifutDiurPUF)
-                                :apt-owned-by-family (comp (specific-vals-to-1-others-to-0 #{"1" "4"})
-                                                           :TzuratAchzakatDira2008MchvPUF)}))
+(def standard-column-fns
+  (conj (identity-map [:EretzLeidaZkPUF
+                       :KtvtLifney5ShanaMachozMchvPUF
+                       :KtvtLifney5ShanaMetropolinPUF
+                       :OleShnot90MchvPUF
+                       :RovaKtvtMegurimPUF
+                       :TatRovaKtvtMegurimPUF
+                       :SmlAnafKalkaliPUF ;; TODO: transform this
+                       :SmlEzorStatistiKtvtMegurimPUF
+                       :SmlMishlachYadPUF ;; TODO: transform this
+                       :SmlYishuvPUF
+                       :TkufatSiyumBniyatDiraMchvPUF
+                       ]
+                      )
+        {:Hchns2008BrutoSachirPUF-int (comp parse-int-or-nil :Hchns2008BrutoSachirPUF)
+         :Hchns2008MbMchvPUF-int (comp parse-int-or-nil :Hchns2008MbMchvPUF)
+         :DiraNosefetAchrPUF=1 (comp (specific-val-to-1-others-to-0 "1")
+                                     :DiraNosefetAchrPUF)
+         :KayamMachshevPUF (comp (specific-val-to-1-others-to-0 "1")
+                                 :KayamMachshevPUF)
+         :KayamMazganPUF (comp (specific-val-to-1-others-to-0 "1")
+                               :KayamMazganPUF)
+         :KayamMediachKelimPUF (comp (specific-val-to-1-others-to-0 "1")
+                                     :KayamMediachKelimPUF)
+         :KayamMeyabeshKvisaPUF (comp (specific-val-to-1-others-to-0 "1")
+                                      :KayamMeyabeshKvisaPUF)
+         :KayamMicrogalPUF (comp (specific-val-to-1-others-to-0 "1")
+                                 :KayamMicrogalPUF)
+         :KayamTvPUF (comp (specific-val-to-1-others-to-0 "1")
+                           :KayamTvPUF)
+         :KayamVideoDvdPUF (comp (specific-val-to-1-others-to-0 "1")
+                                 :KayamVideoDvdPUF)
+         :MspChadarimPUF-reg (comp regular-int-or-nil
+                                   :MspChadarimPUF)
+         :MspSherutimPUF-reg (comp regular-int-or-nil
+                                   :MspSherutimPUF)
+         :MspShnotLimudZkPUF-reg (comp regular-int-or-nil
+                                       :MspShnotLimudZkPUF)
+         ;; so we will filter out ages 0-14!
+         :NefashotMeshekBayitPUF-reg (comp regular-int-or-nil
+                                           :MspShnotLimudZkPUF)
+         :RchvPUF-reg (comp regular-int-or-nil
+                            :RchvPUF)
+         :TelephonNayadPUF-reg (comp regular-int-or-nil
+                                     :TelephonNayadPUF)
+         :TelephonPUF-reg (comp regular-int-or-nil
+                                :TelephonPUF)
+         :new-apt (comp (specific-val-to-1-others-to-0 "9")
+                        :TkufatSiyumBniyatDiraMchvPUF)
+         ;; Note redundancy of information with
+         ;; the column :TkufatSiyumBniyatDiraMchvPUF
+         :TzfifutDiurPUF-reg (comp regular-int-or-nil
+                                   :TzfifutDiurPUF)
+         :apt-owned-by-family (comp (specific-vals-to-1-others-to-0 #{"1" "4"})
+                                    :TzuratAchzakatDira2008MchvPUF)}))
 
 
 (def pca-columns [:Hchns2008MbMchvPUF-int
@@ -438,6 +439,15 @@ Note: same as (into [] coll), but parallel."
                   ])
 ;; NOTE: Avoiding home-related vars to avoid interaction with :new-apt.
 
+
+(def col-names-to-avoid [:Hchns2008BrutoSachirPUF-int
+                       :MspSherutimPUF-reg
+                       :MspChadarimPUF-reg
+                       :TzfifutDiurPUF-reg
+                       :NefashotMeshekBayitPUF-reg
+                       :SmlAnafKalkaliPUF
+                       :SmlMishlachYadPUF])
+
 ;; TODO: Remove duplicate versions of this fn in different files.
 (defn filter-all-nonnil [adataset]
   (to-dataset
@@ -446,495 +456,64 @@ Note: same as (into [] coll), but parallel."
            (:rows adataset))))
 
 
-(def pca-result
-  (let [data-for-pca (->> (read-cols-and-rows puf-filename
-                                              :seq-transformer #(sample % :size 10000)
-                                              ;;(partial take 1000)
-                                              )
-                          (transform-cols-and-rows
-                           (select-keys standard-column-fns pca-columns))
-                          cols-and-rows-to-dataset
-                          filter-all-nonnil
-                          )
-        pca (principal-components (to-matrix data-for-pca))]
-    {:pca pca
-     :col-names (col-names data-for-pca)}))
-
 (def comp1-filename
   "/home/we/workspace/data/pca/comp1.clj")
 
-(let [comp1 (apply hash-map (interleave (:col-names pca-result)
-                                        ($ 0 (:rotation (:pca pca-result)))))]
-  (spit
-   comp1-filename
-   (with-out-str
-     (pprint comp1))))
+(comment (def pca-result
+           (let [data-for-pca (->> (read-cols-and-rows puf-filename
+                                                       :seq-transformer #(sample % :size 10000)
+                                                       ;;(partial take 1000)
+                                                       )
+                                   (transform-cols-and-rows
+                                    (select-keys standard-column-fns pca-columns))
+                                   cols-and-rows-to-dataset
+                                   filter-all-nonnil
+                                   )
+                 pca (principal-components (to-matrix data-for-pca))]
+             {:pca pca
+              :col-names (col-names data-for-pca)}))
+          (let [comp1 (apply hash-map (interleave (:col-names pca-result)
+                                                 ($ 0 (:rotation (:pca pca-result)))))]
+           (spit
+            comp1-filename
+            (with-out-str
+              (pprint comp1)))))
 
 (def comp1
   (load-file comp1-filename))
 
+
+(defn replace-columns-by-linear-combination
+  [coeff-map new-col-name cols-and-rows]
+  (let [coeff-vals (vals coeff-map)
+        coeff-col-names (keys coeff-map)]
+    {:column-names (:column-names cols-and-rows)
+     :rows (for [row (:rows cols-and-rows)]
+             (let [relevant-vals (map row coeff-col-names)
+                   lincomb (if (every? identity relevant-vals)
+                             (apply
+                              +
+                              (map *
+                                   relevant-vals
+                                   coeff-vals)))]
+               (assoc
+                   (apply dissoc row (keys coeff-map))
+                 new-col-name lincomb)))}))
+
 ;;;;;;;;;;;;;;;;;;;;;
 
-(def pre-d
-  (->> puf-filename
-       read-cols-and-rows
-       (transform-cols-and-rows
-        
+(time
+ (def d
+   (->> (read-cols-and-rows puf-filename
+                            :seq-transformer #(sample % :size 10000))
+        (transform-cols-and-rows (apply dissoc standard-column-fns
+                                        col-names-to-avoid))
+        (replace-columns-by-linear-combination comp1 :comp1)
+        cols-and-rows-to-dataset
+        filter-all-nonnil)))
 
-        )
-       cols-and-rows-to-dataset)
 
-  (read-csv-dataset puf-filename
-                    nil))
 
-(map (fn [col-name]
-       (do (cb col-name)
-           (println (frequencies ($ col-name pre-d)))
-           (println "#########################################################")))
-     (col-names pre-d))
 
 
 
-(def d (transform-col
-        (transform-col
-         ($where {:Hchns2008MbMchvPUF {:$ne ""}} pre-d)
-         :Hchns2008MbMchvPUF #(Integer/parseInt %))
-        :KtvtLifney5ShanaMetropolinPUF #(> (Integer/parseInt %) 12)))
-
-(dim pre-d)
-(dim d)
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; PCA
-
-
-:DiraNosefetAchrPUF =1
-:Hchns2008BrutoSachirPUF
-:KayamDudShemeshPUF
-:KayamInternetPUF
-:KayamMachshevPUF
-:KayamMazganPUF
-:KayamMediachKelimPUF
-:KayamMeyabeshKvisaPUF
-:KayamMicrogalPUF
-:KayamTvPUF
-:KayamVideoDvdPUF
-:MspChadarimPUF
-:MspChdshAvdShana2008PUF
-:MspShaotAvdShavuaPUF
-:MspSherutimPUF
-:MspShnotLimudZkPUF
-:NefashotMeshekBayitPUF
-:RchvPUF
-:SmlAnafKalk
-:SmlMishlachYadPUF
-:TelephonNayadPUF
-:TelephonPUF
-:TkufatSiyumBniyatDiraMchvPUF
-:TzfifutDiurPUF
-:TzuratAchzakatDira2008MchvPUF
-
-
-
-
-
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(def dataset-by-sa
-  ($group-by [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF] d))
-
-
-(def distrib-by-sa
-  (fmap (fn [adataset]
-          (let [clean-dataset ($where {:Hchns2008MbMchvPUF {:$ne ""}} adataset)
-                freqs (->> (conj-cols (dataset [:new] (map (fn [x] (> (Integer/parseInt x) 12))
-                                                           ($ :KtvtLifney5ShanaMetropolinPUF clean-dataset)))
-                                      (dataset [:wealthy] (map (fn [x] (> (Integer/parseInt x) 12))
-                                                               ($ :Hchns2008MbMchvPUF clean-dataset))))
-                           :rows
-                           frequencies)
-                distrib (fmap #(float (/ % (nrow clean-dataset)))
-                              freqs)
-                mean-hchns (->> ($ :Hchns2008MbMchvPUF clean-dataset)
-                                (map #(Integer/parseInt %))
-                                mean)
-                ]
-            (conj distrib
-                  {:mean-hchns mean-hchns})))
-        dataset-by-sa))
-
-
-
-
-(->>
- (map #(apply conj %) distrib-by-sa)
- to-dataset
- filter-full
- :rows
- (map (fn [row]
-        (conj row
-              {:new-part (+ (row {:wealthy true, :new true})
-                            (row {:wealthy false, :new true}))})))
- to-dataset
- (#(scatter-plot :new-part :mean-hchns
-                 :data %
-                 :group-by :SmlYishuvPUF))
- show-chart
- )
-
-
-(->> (map #(apply conj %) distrib-by-sa)
-     to-dataset
-     filter-full
-     (#(sel % :except-cols [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]))
-     (#(col-names % (map obj-to-keyword (:column-names %))))
-     scatter-plot-matrix
-     show-chart )
-
-
-(def cond-means-by-sa
-  (fmap (fn [adataset]
-          (let [clean-dataset clean-d
-                rollup-mean (:rows ($rollup mean :Hchns2008MbMchvPUF [:KtvtLifney5ShanaMetropolinPUF]
-                                            clean-dataset))
-                cond-means {:mean-hchns-new (first (map :Hchns2008MbMchvPUF
-                                                        (filter :KtvtLifney5ShanaMetropolinPUF rollup-mean)))
-                            :mean-hchns-old (first (map :Hchns2008MbMchvPUF
-                                                        (filter (complement :KtvtLifney5ShanaMetropolinPUF) rollup-mean)))}]
-            cond-means))
-        dataset-by-sa))
-
-
-
-(->> (map #(apply conj %) cond-means-by-sa)
-     to-dataset
-     filter-all-nonnil
-     (#(transform-col % :SmlYishuvPUF (fn [x] (= x "9000"))))
-     (#(scatter-plot :mean-hchns-old :mean-hchns-new
-                     :data %
-                     :group-by :SmlYishuvPUF))
-     show-chart
-     )
-
-
-
-
-(->> (map #(apply conj %) cond-means-by-sa)
-     to-dataset
-     filter-all-nonnil
-     :rows
-     (map (fn [row]
-            (conj row
-                  {:quot (/ (:mean-hchns-new row)
-                            (:mean-hchns-old row))
-                   :diff (- (:mean-hchns-new row)
-                            (:mean-hchns-old row))})))
-     to-dataset
-     ($order [:quot] :asc))
-
-
-
-
-
-
-(def cond-means-by-sa
-  (fmap (fn [adataset]
-          (let [clean-dataset (transform-col
-                               (transform-col
-                                ($where {:Hchns2008MbMchvPUF {:$ne ""}} adataset)
-                                :Hchns2008MbMchvPUF #(Integer/parseInt %))
-                               :KtvtLifney5ShanaMetropolinPUF #(> (Integer/parseInt %) 12))
-                rollup-mean (:rows ($rollup mean :Hchns2008MbMchvPUF [:KtvtLifney5ShanaMetropolinPUF]
-                                            clean-dataset))
-                cond-means {:mean-hchns-new (first (map :Hchns2008MbMchvPUF
-                                                        (filter :KtvtLifney5ShanaMetropolinPUF rollup-mean)))
-                            :mean-hchns-old (first (map :Hchns2008MbMchvPUF
-                                                        (filter (complement :KtvtLifney5ShanaMetropolinPUF) rollup-mean)))}]
-            cond-means))
-        dataset-by-sa))
-
-
-
-
-
-
-
-
-
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(->> ($where {:SmlYishuvPUF "5000"} d)
-     ($ [:KtvtLifney5ShanaMachozMchvPUF :KtvtLifney5ShanaMetropolinPUF])
-     :rows
-     freqs-as-rows
-     (map (fn [row] (conj (select-keys row [:count])
-                          (:val row))))
-     to-dataset
-     ($group-by :KtvtLifney5ShanaMetropolinPUF))
-
-
-(->> ($where {:SmlYishuvPUF "5000"} d)
-     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
-     :rows
-     freqs-as-rows
-     (map (fn [row] (conj (select-keys row [:count])
-                          (:val row))))
-     to-dataset
-     ($group-by :KtvtLifney5ShanaMetropolinPUF))
-
-(->> ($where {:SmlYishuvPUF "5000"} d)
-     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
-     :rows
-     freqs-as-rows
-     (map (fn [row] (conj (select-keys row [:count])
-                          (:val row))))
-     to-dataset
-     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
-
-(->> ($where {:SmlYishuvPUF "8300"} d)
-     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
-     :rows
-     freqs-as-rows
-     (map (fn [row] (conj (select-keys row [:count])
-                          (:val row))))
-     to-dataset
-     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
-
-(->> ($where {:SmlYishuvPUF "8300"} d)
-     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
-     :rows
-     freqs-as-rows
-     (map (fn [row] (conj (select-keys row [:count])
-                          (:val row))))
-     to-dataset
-     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
-
-
-(->> ($where {:SmlYishuvPUF "7900"} d)
-     ($ [:KtvtLifney5ShanaMetropolinPUF :TkufatSiyumBniyatDiraMchvPUF])
-     :rows
-     freqs-as-rows
-     (map (fn [row] (conj (select-keys row [:count])
-                          (:val row))))
-     to-dataset
-     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
-
-
-(->> ($where {:SmlYishuvPUF "3000"} d)
-     ($ [:KtvtLifney5ShanaMachozMchvPUF :TkufatSiyumBniyatDiraMchvPUF])
-     :rows
-     freqs-as-rows
-     (map (fn [row] (conj (select-keys row [:count])
-                          (:val row))))
-     to-dataset
-     ($group-by :TkufatSiyumBniyatDiraMchvPUF))
-
-
-
-(->> ($where {:TkufatSiyumBniyatDiraMchvPUF "9"} d)
-     ($ [:KtvtLifney5ShanaMachozMchvPUF :SmlYishuvPUF])
-     :rows
-     freqs-as-rows
-     (map (fn [row] (conj (select-keys row [:count])
-                          (:val row))))
-     to-dataset
-     ($group-by :SmlYishuvPUF)
-     )
-
-
-
-(def comparison
-  (let [;;;;
-        transformed-clean-d
-        (transform-col-and-rename clean-d
-                                  :TkufatSiyumBniyatDiraMchvPUF
-                                  :new-apt
-                                  #(= % "9"))
-        ;;;;
-        combinations
-        (->> transformed-clean-d
-             ($ [:KtvtLifney5ShanaMachozMchvPUF :SmlYishuvPUF :new-apt])
-             :rows
-             freqs-as-rows
-             (filter #(< 50 (:count %)))
-             (map (fn [row] (conj (select-keys row [:count])
-                                  (:val row))))
-             )
-        ;;;;
-        combinations-with-measures
-        (into [] (r/map (fn [row]
-                          (let [incomes ($ :Hchns2008MbMchvPUF
-                                           ($where (dissoc row :count)
-                                                   transformed-clean-d))]
-                            (conj row
-                                  {:median-income (median incomes)
-                                   :mean-income (round3 (mean incomes))})))
-                        (r/filter
-                         ;;identity
-                         #(.endsWith (:SmlYishuvPUF %) "00")
-                         combinations)))]
-    ($order
-     [:SmlYishuvPUF :new-apt] :asc
-     (to-dataset combinations-with-measures))))
-;;($group-by [:SmlYishuvPUF :new-apt])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
-(defn comparison [sml-yishuv]
-  (let [;;;;
-        transformed-clean-d
-        (transform-col-and-rename
-         (transform-col-and-rename
-          ($where {:SmlYishuvPUF sml-yishuv} clean-d)
-          :TkufatSiyumBniyatDiraMchvPUF
-          :new-apt
-          #(if (= % "9")
-             "yes"
-             "-"))
-         :SmlYishuvPUF
-         :yishuv-name
-         #(from-yishuv-code-to-name (Integer/parseInt %))
-         )
-        ;;;;
-        combinations
-        (->> transformed-clean-d
-             ($ [:KtvtLifney5ShanaMachozMchvPUF
-                 :yishuv-name
-                 :RovaKtvtMegurimPUF
-                 :new-apt])
-             :rows
-             freqs-as-rows
-             ;;(filter #(< 50 (:count %)))
-             (map (fn [row] (conj (select-keys row [:count])
-                                  (:val row))))
-             )
-        ;;;;
-        combinations-with-measures
-        (fold-into-vec (r/map (fn [row]
-                                (let [incomes (flatten [($ :Hchns2008MbMchvPUF
-                                                           ($where (dissoc row :count)
-                                                                   transformed-clean-d))])]
-                                  (println (count incomes))
-                                  (conj row
-                                        {:median-income (median incomes)
-                                         :mean-income (round3 (mean incomes))})))
-                              combinations))]
-    ($order
-     [:SmlYishuvPUF :RovaKtvtMegurimPUF :new-apt] :asc
-     (to-dataset combinations-with-measures))))
-
-
-;;($group-by [:SmlYishuvPUF :new-apt])
-
-(->> d
-     ($where {:RovaKtvtMegurimPUF "2"
-              :SmlYishuvPUF "70"
-              :TkufatSiyumBniyatDiraMchvPUF "9"})
-     )
-
-
-
-(->> clean-d
-     ($where {:RovaKtvtMegurimPUF "2"
-              :SmlYishuvPUF "70"
-              ;;:TkufatSiyumBniyatDiraMchvPUF "9"
-              })
-     ($ [:Hchns2008MbMchvPUF :EretzLeidaZkPUF :TkufatSiyumBniyatDiraMchvPUF])
-     ((fn [d1] (transform-col-and-rename
-                d1
-                :TkufatSiyumBniyatDiraMchvPUF
-                :new-apt
-                #(if (= % "9")
-                   "yes"
-                   "-"))))
-     ((fn [d1] (transform-col-and-rename
-                d1
-                :Hchns2008MbMchvPUF
-                :hcns-grp
-                #(int (/ % 7)))))
-     :rows
-     freqs-as-rows
-     to-dataset
-     )
-
-
-(save comparison "comparison.csv")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
-;;       (float (/ (nrow ($where {:Hchns2008MbMchvPUF {:$lt 12}} clean-d))
-;;                 (nrow clean-d)))
-
-;; (->>
-;;  ($where {:SmlEzorStatistiKtvtMegurimPUF "235"} d)
-;;  ($where {:Hchns2008MbMchvPUF {:$ne ""}})
-;;  ($ [:KtvtLifney5ShanaMetropolinPUF
-;;      :Hchns2008MbMchvPUF
-;;      :TkufatSiyumBniyatDiraMchvPUF])
-;;  (#(transform-col-and-rename %
-;;                              :Hchns2008MbMchvPUF :Hchns2008MbMchvPUF-gt12
-;;                              (fn [x] (> (Integer/parseInt x) 12))))
-;;  (#(transform-col-and-rename %
-;;                              :KtvtLifney5ShanaMetropolinPUF :KtvtLifney5ShanaMetropolinPUF-gt12
-;;                              (fn [x] (> (Integer/parseInt x) 12))))
-;;  (#(transform-col-and-rename %
-;;                              :TkufatSiyumBniyatDiraMchvPUF :TkufatSiyumBniyatDiraMchvPUF-gt7
-;;                              (fn [x] (> (Integer/parseInt x) 7))))
-;;  :rows
-;;  freqs-as-rows
-;;  (map (fn [row] (conj (select-keys row [:count])
-;;                      (:val row))))
-;;  to-dataset)
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
