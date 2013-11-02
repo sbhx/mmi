@@ -415,7 +415,7 @@ Note: same as (into [] coll), but parallel."
                                {:Hchns2008BrutoSachirPUF-int (comp parse-int-or-nil :Hchns2008BrutoSachirPUF)
                                 :Hchns2008MbMchvPUF-int (comp parse-int-or-nil :Hchns2008MbMchvPUF)
                                 :DiraNosefetAchrPUF=1 (comp (specific-val-to-1-others-to-0 "1")
-                                                            :DiraNosefetAchrPUF=1)
+                                                            :DiraNosefetAchrPUF)
                                 :KayamMachshevPUF (comp (specific-val-to-1-others-to-0 "1")
                                                         :KayamMachshevPUF)
                                 :KayamMazganPUF (comp (specific-val-to-1-others-to-0 "1")
@@ -487,32 +487,47 @@ Note: same as (into [] coll), but parallel."
            (:rows adataset))))
 
 
-(->> (read-cols-and-rows puf-filename
-                         :seq-transformer #(sample % :size 10000) ;;(partial take 1000)
-                         )
-     (transform-cols-and-rows
-      standard-column-fns)
-     ;;
-     ;;pprint
-     ;;:rows
-     ;;(map :MspChadarimPUF<=9)
-     cols-and-rows-to-dataset
-     head)
+;; (->> (read-cols-and-rows puf-filename
+;;                          :seq-transformer #(sample % :size 10000) ;;(partial take 1000)
+;;                          )
+;;      (transform-cols-and-rows
+;;       standard-column-fns)
+;;      ;;
+;;      ;;pprint
+;;      ;;:rows
+;;      ;;(map :MspChadarimPUF<=9)
+;;      cols-and-rows-to-dataset
+;;      head)
 
 
-(let [data-for-pca (->> (read-cols-and-rows puf-filename
-                                            :seq-transformer #(sample % :size 1000)
-                                            ;;(partial take 1000)
-                                            )
-                        (transform-cols-and-rows
-                         (select-keys standard-column-fns pca-columns))
-                        cols-and-rows-to-dataset
-                        filter-all-nonnil
-                        to-matrix)
-      pca (principal-components data-for-pca)]
-  )
+(def pca-result
+  (let [data-for-pca (->> (read-cols-and-rows puf-filename
+                                              :seq-transformer #(sample % :size 10000)
+                                              ;;(partial take 1000)
+                                              )
+                          (transform-cols-and-rows
+                           (select-keys standard-column-fns pca-columns))
+                          cols-and-rows-to-dataset
+                          filter-all-nonnil
+                          )
+        pca (principal-components (to-matrix data-for-pca))]
+    {:pca pca
+     :col-names (col-names data-for-pca)}))
 
+(def comp1-filename
+  "/home/we/workspace/data/pca/comp1.clj")
 
+(let [comp1 (apply hash-map (interleave (:col-names pca-result)
+                                        ($ 0 (:rotation (:pca pca-result)))))]
+  (spit
+   comp1-filename
+   (with-out-str
+     (pprint comp1))))
+
+(def comp1
+  (load-file comp1-filename))
+
+;;;;;;;;;;;;;;;;;;;;;
 
 (def pre-d
   (->> puf-filename
