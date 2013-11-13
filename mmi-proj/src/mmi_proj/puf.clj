@@ -14,7 +14,7 @@
 (use '[clojure.java.shell :only [sh]])
 (use 'clojure.pprint)
 (import [java.net URL])
-;;(require '[clojure.data.csv :as csv])
+(require '[clojure.data.csv])
 (require 'clojure-csv.core)
 (require 'clojure.reflect)
 (import '[org.jfree.chart ChartPanel JFreeChart])
@@ -160,33 +160,42 @@
                        {column new-column}
                        (:column-names dataset))))))
 
-(defn round3 [x]
-  (float (/ (Math/round (* x
-                           1000))
-            1000)))
+(defn round [k]
+  (let [p (pow 10 k)]
+    (fn [x]
+      (float (/ (Math/round (* x
+                               p))
+                p)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (def puf-filename
   "/home/we/workspace/PUF 2008/H20081171Data.csv")
 
-(defn read-cols-and-rows [filename & {:keys [seq-transformer]
-                                      :or {seq-transformer identity}}]
+
+(defn read-cols-and-rows [filename & {:keys [seq-transformer delimiter]
+                                      :or {seq-transformer identity
+                                           delimiter ","}}]
   (let [file-reader (clojure.java.io/reader filename)
         column-names (->> (.readLine file-reader)
-                          (#(clojure.string/split % #","))
+                          (#(clojure.string/split % (re-pattern delimiter)))
                           (map keyword))
         ;; Note that the side effect of the last let-element
         ;; is that the file-reader has progressed to its 2nd
         ;; line.
         lines (seq-transformer (line-seq file-reader))
-        rows-vals (map (comp first clojure-csv.core/parse-csv)
+        rows-vals (map (comp first
+                             #(clojure-csv.core/parse-csv %
+                                                          :delimiter delimiter))
                        lines)
         ;;rows-vals (csv/read-csv file-reader)
         rows (map (fn [row-vals]
                     (apply hash-map
                            (interleave column-names row-vals)))
-                  (seq-transformer rows-vals))]
+                  rows-vals
+                  ;;(seq-transformer rows-vals)
+                  )]
+    (println ["delimiter-pattern" (re-pattern delimiter)])
     {:column-names column-names
      :rows rows}))
 
@@ -500,20 +509,119 @@ Note: same as (into [] coll), but parallel."
                    (apply dissoc row (keys coeff-map))
                  new-col-name lincomb)))}))
 
+(defn order [values]
+  (map second
+       (sort-by first
+                (map vector
+                     values
+                     (range (count values))))))
+
+(defn uniformize [values]
+  (map /
+       (map inc
+            (order (order values)))
+       (repeat (inc (count values)))))
+
+(comment
+  (let [x (repeatedly 9 rand)]
+    (= (order x)
+       (order (uniformize x)))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;
 
-(time
- (def d
-   (->> (read-cols-and-rows puf-filename
-                            :seq-transformer #(sample % :size 10000))
-        (transform-cols-and-rows (apply dissoc standard-column-fns
-                                        col-names-to-avoid))
-        (replace-columns-by-linear-combination comp1 :comp1)
-        cols-and-rows-to-dataset
-        filter-all-nonnil)))
+(def pre-d-filename "/home/we/workspace/data/pre-d.csv")
+
+(comment
+  (time
+   (let [pre-d 
+         (->> (read-cols-and-rows puf-filename
+                                  ;;:seq-transformer #(take 100000 %)
+                                  )
+              (transform-cols-and-rows (apply dissoc standard-column-fns
+                                              col-names-to-avoid))
+              (replace-columns-by-linear-combination comp1 :comp1)
+              cols-and-rows-to-dataset
+              filter-all-nonnil)]
+     (println (dim pre-d))
+     (save pre-d pre-d-filename))))
+
+
+(def d
+  (time (let [pre-d (read-dataset pre-d-filename
+                                  :header true)]
+          (add-column :ucomp1
+                      (uniformize ($ :comp1 pre-d))
+                      (add-column :yishuv-name
+                                  (map from-yishuv-code-to-name 
+                                       ($ :SmlYishuvPUF pre-d))
+                                  pre-d)))))
 
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+(def comparison
+  (memoize
+   (fn [subd cutoff]
+     (let [ ;;;;
+           combinations (->> subd
+                             ($ [:KtvtLifney5ShanaMachozMchvPUF
+                                 :yishuv-name
+                                 :RovaKtvtMegurimPUF
+                                 :new-apt])
+                             :rows
+                             freqs-as-rows
+                             (filter #(< cutoff
+                                         (:count %)))
+                             (map (fn [row] (conj (select-keys row [:count])
+                                                 (:val row)))))
+;;;;
+           combinations-with-measures
+           (fold-into-vec (r/map (fn [row]
+                                   (let [ucomp1s (flatten [($ :ucomp1
+                                                              ($where (dissoc row :count)
+                                                                      subd))])
+                                         n (count ucomp1s)]
+                                     (println n)
+                                     (conj row
+                                           {:n n
+                                            :median-ucomp1 ((round 4) (median ucomp1s))
+                                            :mean-ucomp1 ((round 4) (mean ucomp1s))})))
+                                 (vec combinations)))]
+       ($order
+        [:SmlYishuvPUF :RovaKtvtMegurimPUF :new-apt] :asc
+        (to-dataset combinations-with-measures))))))
 
+(comment
+  (let [cutoff 50
+        c (comparison d cutoff)
+        filename (str "/home/we/workspace/data/c" cutoff ".csv")]
+    (save c filename)
+    (println (str "wrote " filename))
+    (print (dim c))))
+
+(def c50 (read-dataset "/home/we/workspace/data/c50.csv"
+                       :header true))
+
+
+;;;;
+
+
+(->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
+                         :delimiter "\t")
+     (transform-cols-and-rows {:x #(Double/parseDouble (:x %))
+                               :y #(Double/parseDouble (:y %))
+                               :cityCode :cityCode
+                               :statAreaCode :statAreaCode})
+     ;; cols-and-rows-to-dataset
+     ;; ($group-by [:cityCode :statAreaCode])
+     ;; (map (fn [case-and-data]
+     ;;        (conj (first case-and-data)
+     ;;              {:mean-x (mean ($ :x (second case-and-data)))
+     ;;               :mean-y (mean ($ :y (second case-and-data)))})))
+     )
+
+(def sdetails (read.csv 
+                        :header true))
