@@ -176,17 +176,16 @@
 (defn read-cols-and-rows [filename & {:keys [seq-transformer delimiter]
                                       :or {seq-transformer identity
                                            delimiter ","}}]
-  (let [file-reader (clojure.java.io/reader filename)
+  (let [delimiter-pattern (re-pattern delimiter)
+        file-reader (clojure.java.io/reader filename)
         column-names (->> (.readLine file-reader)
-                          (#(clojure.string/split % (re-pattern delimiter)))
+                          (#(clojure.string/split % delimiter-pattern))
                           (map keyword))
         ;; Note that the side effect of the last let-element
         ;; is that the file-reader has progressed to its 2nd
         ;; line.
         lines (seq-transformer (line-seq file-reader))
-        rows-vals (map (comp first
-                             #(clojure-csv.core/parse-csv %
-                                                          :delimiter delimiter))
+        rows-vals (map #(clojure.string/split % delimiter-pattern)
                        lines)
         ;;rows-vals (csv/read-csv file-reader)
         rows (map (fn [row-vals]
@@ -195,7 +194,7 @@
                   rows-vals
                   ;;(seq-transformer rows-vals)
                   )]
-    (println ["delimiter-pattern" (re-pattern delimiter)])
+    (println ["reading" filename "with delimiter-pattern" (re-pattern delimiter)])
     {:column-names column-names
      :rows rows}))
 
@@ -509,6 +508,8 @@ Note: same as (into [] coll), but parallel."
                    (apply dissoc row (keys coeff-map))
                  new-col-name lincomb)))}))
 
+
+
 (defn order [values]
   (map second
        (sort-by first
@@ -528,7 +529,59 @@ Note: same as (into [] coll), but parallel."
        (order (uniformize x)))))
 
 
+
+
 ;;;;;;;;;;;;;;;;;;;;;
+
+
+
+(def coords-filename "/home/we/workspace/data/coords.csv")
+
+(comment
+  (let [coords (->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
+                                        :delimiter "\t")
+                    (transform-cols-and-rows {:x #(Double/parseDouble (:x %))
+                                              :y #(Double/parseDouble (:y %))
+                                              :cityCode :cityCode
+                                              :statAreaCode (comp
+                                                             #(if (= % "null")
+                                                                nil
+                                                                %)
+                                                             :statAreaCode)})
+                    cols-and-rows-to-dataset
+                    ($group-by [:cityCode :statAreaCode])
+                    (map (fn [case-and-data]
+                           (conj (first case-and-data)
+                                 {:mean-x (mean ($ :x (second case-and-data)))
+                                  :mean-y (mean ($ :y (second case-and-data)))})))
+                    to-dataset)]
+    (save coords coords-filename)
+    (println ["wrote coords of dim" (dim coords)
+              "to" coords-filename])))
+
+(def coords (read-dataset coords-filename
+                          :header true))
+
+(comment
+  (sdisplay 1
+            (ChartPanel.
+             (scatter-plot :mean-x
+                           :mean-y
+                           :data coords
+                           :group-by :cityCode))
+            nil))
+
+(def coords-map
+  (apply conj
+         (for [row (:rows coords)]
+           {{:SmlYishuvPUF (:cityCode row)
+              :SmlEzorStatistiKtvtMegurimPUF (:statAreaCode row)}
+            (select-keys row [:mean-x
+                              :mean-y])})))
+
+
+;;;;;;;;;;;;;;;;;;;;;
+
 
 (def pre-d-filename "/home/we/workspace/data/pre-d.csv")
 
@@ -549,13 +602,21 @@ Note: same as (into [] coll), but parallel."
 
 (def d
   (time (let [pre-d (read-dataset pre-d-filename
-                                  :header true)]
-          (add-column :ucomp1
-                      (uniformize ($ :comp1 pre-d))
-                      (add-column :yishuv-name
-                                  (map from-yishuv-code-to-name 
-                                       ($ :SmlYishuvPUF pre-d))
-                                  pre-d)))))
+                                  :header true)
+              pre-d-1 (conj-cols pre-d
+                               (dataset [:mean-x :mean-y]
+                                        (map coords-map
+                                             (:rows
+                                              ($ [:SmlYishuvPUF
+                                                  :SmlEzorStatistiKtvtMegurimPUF]
+                                                 pre-d)))))
+              pre-d-2 (add-column :ucomp1
+                                  (uniformize ($ :comp1 pre-d-1))
+                                  (add-column :yishuv-name
+                                              (map from-yishuv-code-to-name 
+                                                   ($ :SmlYishuvPUF pre-d-1))
+                                              pre-d-1))]
+          pre-d-2)))
 
 
 
@@ -599,7 +660,7 @@ Note: same as (into [] coll), but parallel."
         c (comparison d cutoff)
         filename (str "/home/we/workspace/data/c" cutoff ".csv")]
     (save c filename)
-    (println (str "wrote " filename))
+    (println ["wrote" filename])
     (print (dim c))))
 
 (def c50 (read-dataset "/home/we/workspace/data/c50.csv"
@@ -608,20 +669,46 @@ Note: same as (into [] coll), but parallel."
 
 ;;;;
 
+(def stat-areas
+  (distinct
+   ($ [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]
+      d)))
 
-(->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
-                         :delimiter "\t")
-     (transform-cols-and-rows {:x #(Double/parseDouble (:x %))
-                               :y #(Double/parseDouble (:y %))
-                               :cityCode :cityCode
-                               :statAreaCode :statAreaCode})
-     ;; cols-and-rows-to-dataset
-     ;; ($group-by [:cityCode :statAreaCode])
-     ;; (map (fn [case-and-data]
-     ;;        (conj (first case-and-data)
-     ;;              {:mean-x (mean ($ :x (second case-and-data)))
-     ;;               :mean-y (mean ($ :y (second case-and-data)))})))
-     )
+(def mean-ucomp1-by-stat-area
+  ($rollup mean
+           :ucomp1
+           [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]
+           d))
 
-(def sdetails (read.csv 
-                        :header true))
+(def mean-ucomp1-by-coords
+  (to-dataset
+   (map (fn [row]
+          (into row
+                (coords-map (select-keys row
+                                         [:SmlYishuvPUF
+                                          :SmlEzorStatistiKtvtMegurimPUF]))))
+        (:rows mean-ucomp1-by-stat-area))))
+
+
+(let [chart (scatter-plot [] [])
+      rows (vec (:rows mean-ucomp1-by-coords))
+      uu (vec
+          (uniformize ($ :ucomp1 mean-ucomp1-by-coords)))] ;; NOTE THIS!
+  (doseq [row rows]
+    (add-points chart
+                [(:mean-x row)]
+                [(:mean-y row)]))
+  (doseq [i (range (count rows))]
+    (let [uui (double (uu i))]
+      (println uui)
+      (.setSeriesPaint
+       (.getRenderer (.getPlot chart) i)
+       0
+       (java.awt.Color. (float uui)
+                        (float uui)
+                        (float (- 1 uui))))))
+  (let [city ($where {:SmlYishuvPUF 5000} mean-ucomp1-by-coords)]
+    (add-lines chart
+               ($ :mean-x city)
+               ($ :mean-y city)))
+  (view chart))
