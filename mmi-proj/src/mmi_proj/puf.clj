@@ -480,12 +480,12 @@ Note: same as (into [] coll), but parallel."
                  pca (principal-components (to-matrix data-for-pca))]
              {:pca pca
               :col-names (col-names data-for-pca)}))
-          (let [comp1 (apply hash-map (interleave (:col-names pca-result)
+         (let [comp1 (apply hash-map (interleave (:col-names pca-result)
                                                  ($ 0 (:rotation (:pca pca-result)))))]
-           (spit
-            comp1-filename
-            (with-out-str
-              (pprint comp1)))))
+            (spit
+             comp1-filename
+             (with-out-str
+               (pprint comp1)))))
 
 (def comp1
   (load-file comp1-filename))
@@ -616,6 +616,7 @@ Note: same as (into [] coll), but parallel."
                                               (map from-yishuv-code-to-name 
                                                    ($ :SmlYishuvPUF pre-d-1))
                                               pre-d-1))]
+          (println (dim pre-d-2))
           pre-d-2)))
 
 
