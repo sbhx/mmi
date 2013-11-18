@@ -690,11 +690,14 @@ Note: same as (into [] coll), but parallel."
                                           :SmlEzorStatistiKtvtMegurimPUF]))))
         (:rows mean-ucomp1-by-stat-area))))
 
-
+  
 (let [chart (scatter-plot [] [])
-      rows (vec (:rows mean-ucomp1-by-coords))
+      rows (vec (:rows
+                 mean-ucomp1-by-coords
+                 ;;($where {:SmlYishuvPUF 5000} mean-ucomp1-by-coords)
+                 ))
       uu (vec
-          (uniformize ($ :ucomp1 mean-ucomp1-by-coords)))] ;; NOTE THIS!
+          (uniformize (map :ucomp1 rows)))] ;; NOTE THIS!
   (doseq [row rows]
     (add-points chart
                 [(:mean-x row)]
@@ -706,10 +709,35 @@ Note: same as (into [] coll), but parallel."
        (.getRenderer (.getPlot chart) i)
        0
        (java.awt.Color. (float uui)
-                        (float uui)
+                        (float (- 1 uui))
                         (float (- 1 uui))))))
-  (let [city ($where {:SmlYishuvPUF 5000} mean-ucomp1-by-coords)]
-    (add-lines chart
-               ($ :mean-x city)
-               ($ :mean-y city)))
-  (view chart))
+  ;; (let [city ($where {:SmlYishuvPUF 5000} mean-ucomp1-by-coords)]
+  ;;   (add-lines chart
+  ;;              ($ :mean-x city)
+  ;;              ($ :mean-y city))
+  ;;   (.setSeriesPaint
+  ;;      (.getRenderer (.getPlot chart) (count rows))
+  ;;      0
+  ;;      (java.awt.Color. 1 1 1)))
+  (sdisplay 1 (ChartPanel. chart) nil))
+
+
+;; (let [n 999
+;;       chart (scatter-plot [] [])
+;;       uu (vec
+;;           (uniformize (range n)))]
+;;   (doseq [i (range n)]
+;;     (add-points chart
+;;                 [i]
+;;                 [i]))
+;;   (doseq [i (range n)]
+;;     (let [uui (double (uu i))]
+;;       (println uui)
+;;       (.setSeriesPaint
+;;        (.getRenderer (.getPlot chart) i)
+;;        0
+;;        (java.awt.Color. (float uui)
+;;                         (float (- 1 uui))
+;;                         (float (- 1 uui))))))
+;;   (view chart))
+
