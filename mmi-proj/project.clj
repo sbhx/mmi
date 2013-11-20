@@ -23,7 +23,8 @@
                  [com.nuroko/nurokit "0.0.3"]
                  [org.clojure/algo.generic "0.1.1"]
                  [seesaw "1.4.3"]
-                 [com.cemerick/pomegranate "0.2.0"]]
+                 [com.cemerick/pomegranate "0.2.0"]
+                 [net.mikera/imagez "0.2.0"]]
   ;;:main mmi-proj.puf
   :jvm-opts ["-Xmx6g"] )
 

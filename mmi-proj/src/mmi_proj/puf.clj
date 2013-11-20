@@ -675,51 +675,74 @@ Note: same as (into [] coll), but parallel."
    ($ [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]
       d)))
 
-(def mean-ucomp1-by-stat-area
+(defn mean-ucomp1-by-stat-area [subd]
   ($rollup mean
            :ucomp1
            [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]
-           d))
+           subd))
 
-(def mean-ucomp1-by-coords
+(defn mean-ucomp1-by-coords [subd]
   (to-dataset
    (map (fn [row]
           (into row
                 (coords-map (select-keys row
                                          [:SmlYishuvPUF
                                           :SmlEzorStatistiKtvtMegurimPUF]))))
-        (:rows mean-ucomp1-by-stat-area))))
+        (:rows (mean-ucomp1-by-stat-area subd)))))
 
-  
-(let [chart (scatter-plot [] [])
-      rows (vec (:rows
-                 mean-ucomp1-by-coords
-                 ;;($where {:SmlYishuvPUF 5000} mean-ucomp1-by-coords)
-                 ))
-      uu (vec
-          (uniformize (map :ucomp1 rows)))] ;; NOTE THIS!
-  (doseq [row rows]
-    (add-points chart
-                [(:mean-x row)]
-                [(:mean-y row)]))
-  (doseq [i (range (count rows))]
-    (let [uui (double (uu i))]
-      (println uui)
-      (.setSeriesPaint
-       (.getRenderer (.getPlot chart) i)
-       0
-       (java.awt.Color. (float uui)
-                        (float (- 1 uui))
-                        (float (- 1 uui))))))
-  ;; (let [city ($where {:SmlYishuvPUF 5000} mean-ucomp1-by-coords)]
-  ;;   (add-lines chart
-  ;;              ($ :mean-x city)
-  ;;              ($ :mean-y city))
-  ;;   (.setSeriesPaint
-  ;;      (.getRenderer (.getPlot chart) (count rows))
-  ;;      0
-  ;;      (java.awt.Color. 1 1 1)))
-  (sdisplay 1 (ChartPanel. chart) nil))
+
+(defn mean-ucomp1s-by-stat-area [subd]
+  (to-dataset
+   (for [[k v] ($group-by 
+                [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]
+                subd)]
+     (conj k {:mean1 (mean
+                      ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF {:$lt 4}} subd)))
+              :mean2 (mean
+                      ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF {:$gt 3 :$lt 98}} subd)))}))))
+
+(defn mean-ucomp1s-by-coords [subd]
+  (to-dataset
+   (map (fn [row]
+          (into row
+                (coords-map (select-keys row
+                                         [:SmlYishuvPUF
+                                          :SmlEzorStatistiKtvtMegurimPUF]))))
+        (:rows (mean-ucomp1s-by-stat-area subd)))))
+
+
+(defn plot [subd]
+  (let [chart (scatter-plot [] [])
+        rows (vec (filter
+                   (fn [row] (every? #(not (or (nil? %)
+                                              (Double/isNaN %))) (vals row)))
+                   (:rows
+                    (mean-ucomp1s-by-coords subd))))
+        uu (vec
+            (uniformize (map -
+                             (map :mean1 rows)
+                             (map :mean2 rows))))] ;; NOTE THIS!
+    (doseq [row rows]
+      (add-points chart
+                  [(:mean-x row)]
+                  [(:mean-y row)]))
+    (doseq [i (range (count rows))]
+      (let [uui (double (uu i))]
+        (.setSeriesPaint
+         (.getRenderer (.getPlot chart) (inc i))
+         0
+         (java.awt.Color. (float uui)
+                          (float (- 1 uui))
+                          (float (- 1 uui))))))
+    ;; (let [city ($where {:SmlYishuvPUF 5000} mean-ucomp1-by-coords)]
+    ;;   (add-lines chart
+    ;;              ($ :mean-x city)
+    ;;              ($ :mean-y city))
+    ;;   (.setSeriesPaint
+    ;;    (.getRenderer (.getPlot chart) (inc (count rows)))
+    ;;      0
+    ;;      (java.awt.Color. 1 1 1)))
+    chart))
 
 
 ;; (let [n 999
@@ -741,3 +764,26 @@ Note: same as (into [] coll), but parallel."
 ;;                         (float (- 1 uui))))))
 ;;   (view chart))
 
+
+
+(def d-from-here ($where
+                  {:KtvtLifney5ShanaMachozMchvPUF {:$lt 4}} d))
+
+(def d-from-there ($where
+                   {:KtvtLifney5ShanaMachozMchvPUF {:$gt 3 :$lt 98}} d))
+
+(def d-new-apt ($where {:new-apt 1} d))
+
+(def d-old-apt ($where {:new-apt 0} d))
+
+(println (map dim [d
+                   d-from-here d-from-there
+                   d-new-apt d-old-apt]))
+
+(sdisplay 1
+          (s/horizontal-panel
+           :items (map #(ChartPanel. (plot-uucomp1 %))
+                       [;;d-new-apt d-old-apt
+                        d-from-here d-from-there
+                        ]))
+          nil)
