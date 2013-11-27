@@ -94,6 +94,11 @@
    :rows (sample (:rows cols-and-rows)
                  :size size)})
 
+(defn filter-cols-and-rows
+  [row-filter-func cols-and-rows]
+  {:column-names (:column-names cols-and-rows)
+   :rows (filter row-filter-func (:rows cols-and-rows))})
+
 (defn cols-and-rows-to-dataset
   [cols-and-rows]
   (dataset (:column-names cols-and-rows)
