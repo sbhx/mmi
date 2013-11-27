@@ -31,7 +31,8 @@
   (:use clj-utils.misc)
   (:use clj-utils.visual)
   (:use [c2.core :only (unify)])
-  (:use hiccup.core))
+  (:use hiccup.core)
+  (:use clojure.stacktrace))
 
 (apply require clojure.main/repl-requires)
 
@@ -421,10 +422,10 @@ Note: same as (into [] coll), but parallel."
                                                              :statAreaCode)})
                     cols-and-rows-to-dataset
                     ($group-by [:cityCode :statAreaCode])
-                    (map (fn [case-and-data]
-                           (conj (first case-and-data)
-                                 {:mean-x (mean ($ :x (second case-and-data)))
-                                  :mean-y (mean ($ :y (second case-and-data)))})))
+                    (map (fn [place-and-data]
+                           (conj (first place-and-data)
+                                 {:mean-x (mean ($ :x (second place-and-data)))
+                                  :mean-y (mean ($ :y (second place-and-data)))})))
                     to-dataset)]
     (save coords coords-filename)
     (println ["wrote coords of dim" (dim coords)
@@ -824,31 +825,82 @@ Note: same as (into [] coll), but parallel."
 
 ;;;;;;;;;;;
 
-(let [ppm-summary (->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
-                                        :delimiter "\t")
-                    (transform-cols-and-rows {:cityCode :cityCode
-                                              :statAreaCode (comp
-                                                             #(if (= % "null")
-                                                                nil
-                                                                %)
-                                                             :statAreaCode)
-                                              :pricePerMeter :priceByMeter
-                                              :year #(first (clojure.string/split (:saleDay %) #"-"))})
-                    (filter-cols-and-rows #(#{"2006" "2007" "2008" "2009" "2010"} (:year %)))
-                    cols-and-rows-to-dataset
-                    ($group-by [:year])
-                    (map (fn [year-and-data]
-                           [(first year-and-data)
-                            (->> year-and-data
-                                 second
-                                 ($group-by [:cityCode :statAreaCode])
-                                 (map first)
-                                 ;; (map (fn [case-and-data]
-                                 ;;        [(first (case-and-data))
-                                 ;;         (median (:priceByMeter (second case-and-data)))]))
-                                 )]))
-                    (take 2))]
-  ppm-summary)
+(defn median-of-number-or-numbers
+  [number-or-numbers]
+  (if (number? number-or-numbers)
+      number-or-numbers
+      (median number-or-numbers)))
+
+(defn get-ppm-summary
+  []
+  (let [;;;;
+        medppm-by-place-by-year
+        (->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
+                                 :delimiter "\t")
+             (transform-cols-and-rows {:cityCode :cityCode
+                                       :statAreaCode (comp
+                                                      #(if (= % "null")
+                                                         nil
+                                                         %)
+                                                      :statAreaCode)
+                                       :pricePerMeter (comp parse-int-or-nil
+                                                            :priceByMeter)
+                                       :year #(first (clojure.string/split (:saleDay %) #"-"))})
+             (filter-cols-and-rows #((into #{}
+                                           (map str (range 2006 2012)))
+                                     (:year %)))
+             cols-and-rows-to-dataset
+             ($group-by [:year])
+             (map (fn [year-and-data]
+                    [(first year-and-data)
+                     (->> year-and-data
+                          second
+                          ($group-by [:cityCode :statAreaCode])
+                          (map (fn [place-and-data]
+                                 [(first place-and-data)
+                                  (median-of-number-or-numbers ($ :pricePerMeter (second place-and-data)))])))]))
+             (apply concat)
+             (apply hash-map))
+        ;;;;
+        unifprice-by-place-by-year
+        (fmap (fn [places-and-medppms]
+                (apply hash-map
+                       (apply concat
+                              (map vector
+                                   (map first places-and-medppms)
+                                   (uniformize (map second places-and-medppms))))))
+              medppm-by-place-by-year)
+        ;;;;
+        places
+        (distinct (apply concat
+                         (map (fn [year-and-unifprice-by-place]
+                                (map first (second year-and-unifprice-by-place)))
+                              unifprice-by-place-by-year)))
+        ;;;;
+        unifprices-by-place
+        (apply hash-map
+               (apply concat
+                      (for [place places]
+                        [place (apply hash-map
+                                      (apply concat
+                                             (for [year-and-unifprice-by-place unifprice-by-place-by-year]
+                                               [(keyword (str "unifprice" (:year (first year-and-unifprice-by-place))))
+                                                ((second year-and-unifprice-by-place) place)])))])))
+        ]
+    unifprices-by-place))
+
+
+
+
+
+;; (pprint (frequencies (apply concat
+;;                                       (map #(map second (second %))
+;;                                            (get-ppm-summary)))))
+
+;; (let [ppm-summary ]
+;;   (println (map (juxt first
+;;                       (comp count second)) ppm-summary))
+;;   ppm-summary)
 
 
 
