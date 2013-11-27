@@ -111,7 +111,7 @@
     s))
 
 
-(def from-yishuv-code-to-name
+(def map-from-yishuv-code-to-name
   (-> "/home/we/workspace/data/yishuv-name-code.csv"
       (read-dataset :header true)
       (transform-col :name put-Latin-around-Hebrew)
@@ -119,6 +119,12 @@
       (#(mapcat vals %))
       (#(apply hash-map %))
       ))
+
+(defn from-yishuv-code-to-name
+  [yishuv-code]
+  (if-let [yishuv-name (map-from-yishuv-code-to-name yishuv-code)]
+    yishuv-name
+    (str yishuv-code)))
 
 
 ;; http://www.thebusby.com/2012/07/tips-tricks-with-clojure-reducers.html
@@ -246,13 +252,13 @@ Note: same as (into [] coll), but parallel."
                        :RovaKtvtMegurimPUF
                        :TatRovaKtvtMegurimPUF
                        :SmlAnafKalkaliPUF ;; TODO: transform this
-                       :SmlEzorStatistiKtvtMegurimPUF
                        :SmlMishlachYadPUF ;; TODO: transform this
-                       :SmlYishuvPUF
                        :TkufatSiyumBniyatDiraMchvPUF
                        ]
                       )
-        {:Hchns2008BrutoSachirPUF-int (comp parse-int-or-nil :Hchns2008BrutoSachirPUF)
+        {:cityCode :SmlYishuvPUF
+         :statAreaCode :SmlEzorStatistiKtvtMegurimPUF
+         :Hchns2008BrutoSachirPUF-int (comp parse-int-or-nil :Hchns2008BrutoSachirPUF)
          :Hchns2008MbMchvPUF-int (comp parse-int-or-nil :Hchns2008MbMchvPUF)
          :DiraNosefetAchrPUF=1 (comp (specific-val-to-1-others-to-0 "1")
                                      :DiraNosefetAchrPUF)
@@ -439,8 +445,8 @@ Note: same as (into [] coll), but parallel."
 (def coords-map
   (apply conj
          (for [row (:rows coords)]
-           {{:SmlYishuvPUF (:cityCode row)
-             :SmlEzorStatistiKtvtMegurimPUF (:statAreaCode row)}
+           {{:cityCode (:cityCode row)
+             :statAreaCode (:statAreaCode row)}
             (select-keys row [:mean-x
                               :mean-y])})))
 
@@ -476,14 +482,14 @@ Note: same as (into [] coll), but parallel."
                                            #(if % % {}) 
                                            (map coords-map
                                                 (:rows
-                                                 ($ [:SmlYishuvPUF
-                                                     :SmlEzorStatistiKtvtMegurimPUF]
+                                                 ($ [:cityCode
+                                                     :statAreaCode]
                                                     pre-d))))))
               pre-d-2 (add-column :ucomp1
                                   (map double (uniformize ($ :comp1 pre-d-1)))
                                   (add-column :yishuv-name
                                               (map from-yishuv-code-to-name
-                                                   ($ :SmlYishuvPUF pre-d-1))
+                                                   ($ :cityCode pre-d-1))
                                               pre-d-1))]
           (println (dim pre-d-2))
           (save pre-d-2 d-filename))))
@@ -526,7 +532,7 @@ Note: same as (into [] coll), but parallel."
                                             :mean-ucomp1 ((round 4) (mean ucomp1s))})))
                                  (vec combinations)))]
        ($order
-        [:SmlYishuvPUF :RovaKtvtMegurimPUF :new-apt] :asc
+        [:cityCode :RovaKtvtMegurimPUF :new-apt] :asc
         (to-dataset combinations-with-measures))))))
 
 (comment
@@ -545,13 +551,13 @@ Note: same as (into [] coll), but parallel."
 
 (defn stat-areas [d]
   (distinct
-   ($ [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]
+   ($ [:cityCode :statAreaCode]
       d)))
 
 (defn mean-ucomp1-by-stat-area [subd]
   ($rollup mean
            :ucomp1
-           [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]
+           [:cityCode :statAreaCode]
            subd))
 
 (defn mean-ucomp1-by-coords [subd]
@@ -559,20 +565,24 @@ Note: same as (into [] coll), but parallel."
    (map (fn [row]
           (into row
                 (coords-map (select-keys row
-                                         [:SmlYishuvPUF
-                                          :SmlEzorStatistiKtvtMegurimPUF]))))
+                                         [:cityCode
+                                          :statAreaCode]))))
         (:rows (mean-ucomp1-by-stat-area subd)))))
 
+
+(defn careful-mean [numbers]
+  (if (< 30 (count numbers))
+    (mean numbers)))
 
 (defn mean-ucomp1s-by-stat-area [subd]
   (to-dataset
    (for [[k v] ($group-by
-                [:SmlYishuvPUF :SmlEzorStatistiKtvtMegurimPUF]
+                [:cityCode :statAreaCode]
                 subd)]
      (conj k {:n (nrow v)
-              :mean-ucomp1-from-here (mean
+              :mean-ucomp1-from-here (careful-mean
                       ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF 1} v)))
-              :mean-ucomp1-from-there (mean
+              :mean-ucomp1-from-there (careful-mean
                       ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))}))))
 
 (defn mean-ucomp1s-by-coords [subd]
@@ -580,19 +590,9 @@ Note: same as (into [] coll), but parallel."
    (map (fn [row]
           (into row
                 (coords-map (select-keys row
-                                         [:SmlYishuvPUF
-                                          :SmlEzorStatistiKtvtMegurimPUF]))))
+                                         [:cityCode
+                                          :statAreaCode]))))
         (:rows (mean-ucomp1s-by-stat-area subd)))))
-
-
-(defn ta [d]
-  ($where {:SmlYishuvPUF 5000} d))
-
-(defn haifa [d]
-  ($where {:SmlYishuvPUF 4000} d))
-
-(defn lod [d]
-  ($where {:SmlYishuvPUF 7000} d))
 
 (defn plot [subd]
   (let [chart (scatter-plot [] [])
@@ -617,7 +617,7 @@ Note: same as (into [] coll), but parallel."
          (java.awt.Color. (float uui)
                           (float (- 1 uui))
                           (float (- 1 uui))))))
-    ;; (let [city ($where {:SmlYishuvPUF 5000} mean-ucomp1-by-coords)]
+    ;; (let [city ($where {:cityCode 5000} mean-ucomp1-by-coords)]
     ;;   (add-lines chart
     ;;              ($ :mean-x city)
     ;;              ($ :mean-y city))
@@ -649,6 +649,13 @@ Note: same as (into [] coll), but parallel."
                           (float (- 1 uui))))))
     (view chart)))
 
+(defn place-desc
+  [row]
+  (str (clojure.string/replace
+        (from-yishuv-code-to-name (:cityCode row))
+        #"o" "")
+       "-"
+       (:statAreaCode row)))
 
 (defn gen-map-data [subd]
   (let [rows (vec (filter
@@ -665,9 +672,7 @@ Note: same as (into [] coll), but parallel."
                         row (rows i)]
                     {:lon (:mean-x row)
                      :lat (:mean-y row)
-                     :label (str (from-yishuv-code-to-name (:SmlYishuvPUF row))
-                                 "-"
-                                 (:SmlEzorStatistiKtvtMegurimPUF row))
+                     :label (place-desc row)
                      :color (format "#%06X"
                                     (+ uui
                                        (* 256 256 (- 256 uui))))
@@ -685,9 +690,9 @@ Note: same as (into [] coll), but parallel."
         (json/write-str
          (gen-map-data
           (get-d)
-          ;; ($where {:SmlYishuvPUF 5000}
+          ;; ($where {:cityCode 5000}
           ;;         (get-d))
-          ;; ($where {:SmlEzorStatistiKtvtMegurimPUF {:$ne nil}}
+          ;; ($where {:statAreaCode {:$ne nil}}
           ;;                  (get-d))
           ))))
 
@@ -775,13 +780,15 @@ Note: same as (into [] coll), but parallel."
         (json/write-str d3data)))
 
 
+
+
 (comment
   (let [means-data (mean-ucomp1s-by-coords
                     (get-d))
         means-data-1 (filter-all-nonnil-and-nonNaN
                       (add-column :is-ta
                                   (map #(= 5000 %)
-                                       ($ :SmlYishuvPUF means-data))
+                                       ($ :cityCode means-data))
                                   means-data))
         x-axis #(* 1000 %)
         y-axis #(- 1000 (* 1000 %))]
@@ -790,12 +797,12 @@ Note: same as (into [] coll), but parallel."
       "w" 1000
       "lines" [{"x" (x-axis 0) "y" (y-axis 0)}
                {"x" (x-axis 1) "y" (y-axis 0)}
-               {"x" (x-axis 1) "y" (y-axis 1)}
+         ns      {"x" (x-axis 1) "y" (y-axis 1)}
                {"x" (x-axis 0) "y" (y-axis 1)}
                {"x" (x-axis 0) "y" (y-axis 0)}
                {"x" (x-axis 1) "y" (y-axis 1)}]
       "circles" (map (fn [row]
-                       (let [color (case (:SmlYishuvPUF row)
+                       (let [color (case (:cityCode row)
                                      5000 "white"
                                      4000 "red"
                                      3000 "yellow"
@@ -808,13 +815,40 @@ Note: same as (into [] coll), but parallel."
                                   2)
                           "fill" color
                           "stroke" color
-                          "opacity" 0.5}))
+                          "opacity" 0.5
+                          "text" (place-desc row)}))
                      (:rows means-data-1))})))
 
 
 
-(def sd-file "/home/we/workspace/data/salesDump.csv")
 
+;;;;;;;;;;;
+
+(let [ppm-summary (->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
+                                        :delimiter "\t")
+                    (transform-cols-and-rows {:cityCode :cityCode
+                                              :statAreaCode (comp
+                                                             #(if (= % "null")
+                                                                nil
+                                                                %)
+                                                             :statAreaCode)
+                                              :pricePerMeter :priceByMeter
+                                              :year #(first (clojure.string/split (:saleDay %) #"-"))})
+                    (filter-cols-and-rows #(#{"2006" "2007" "2008" "2009" "2010"} (:year %)))
+                    cols-and-rows-to-dataset
+                    ($group-by [:year])
+                    (map (fn [year-and-data]
+                           [(first year-and-data)
+                            (->> year-and-data
+                                 second
+                                 ($group-by [:cityCode :statAreaCode])
+                                 (map first)
+                                 ;; (map (fn [case-and-data]
+                                 ;;        [(first (case-and-data))
+                                 ;;         (median (:priceByMeter (second case-and-data)))]))
+                                 )]))
+                    (take 2))]
+  ppm-summary)
 
 
 
