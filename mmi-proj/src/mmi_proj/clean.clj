@@ -764,36 +764,6 @@ Note: same as (into [] coll), but parallel."
     (sh "firefox" url)))
 
 
-(comment
-  (spit "/home/we/projects/try-web/data.json"
-        (json/write-str
-         {:center {:lat 32, :lon 35}
-          :markers [{:lat 32 :lon 35 :label "A" :color "#ff00ff"}
-                    {:lat 32 :lon 34.9 :label "A" :color "green"}]
-          :zoom 10})))
-
-(comment
-  (let [d3data {
-                "h" 500,
-                "w" 500,
-                "dataset" [
-                           {"cx" 10, 
-                            "cy" 20, 
-                            "r" 12, 
-                            "fill" "red"}
-                           {"cx" 10, 
-                            "cy" 20, 
-                            "r" 4, 
-                            "fill" "black"},
-                           {"cx" 30,
-                            "cy" 50,
-                            "r" 9, 
-                            "fill" "#3499e1"}
-                           ]
-                }]
-    (spit "/home/we/projects/try-web/d3data.json"
-          (json/write-str d3data))))
-
 
 (defn plot-by-d3 [d3data]
   (spit "/home/we/projects/try-web/d3data.json"
@@ -842,16 +812,6 @@ Note: same as (into [] coll), but parallel."
 
 
 
-
-
-
-;; (let [svg [:svg
-;;            [:style {:type "text/css"} (str "")]
-;;            (unify {"A" 50 "B" 120} (fn [[label val]]
-;;                                      [:rect {:x val :y val :height 12 :width 90}]))
-;;            (unify {"C" 180 "D" 240} (fn [[label val]]
-;;                                       [:circle {:cx val :cy val :r 15}]))]]
-;;   (spit "/home/we/projects/try-web/test.html" (html svg)))
 
 
 
