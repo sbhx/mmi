@@ -24,7 +24,10 @@
                  [org.clojure/algo.generic "0.1.1"]
                  [seesaw "1.4.3"]
                  [com.cemerick/pomegranate "0.2.0"]
-                 [net.mikera/imagez "0.2.0"]]
+                 [net.mikera/imagez "0.2.0"]
+                 [org.clojure/data.json "0.2.3"]
+                 [com.keminglabs/c2 "0.2.3"]
+                 [hiccup "1.0.4"]]
   ;;:main mmi-proj.puf
   :jvm-opts ["-Xmx6g"] )
 
