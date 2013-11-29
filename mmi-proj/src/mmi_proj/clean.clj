@@ -555,45 +555,38 @@ Note: same as (into [] coll), but parallel."
    ($ [:cityCode :statAreaCode]
       d)))
 
-(defn mean-ucomp1-by-stat-area [subd]
+(defn mean-ucomp1-by-place [subd]
   ($rollup mean
            :ucomp1
            [:cityCode :statAreaCode]
            subd))
 
-(defn mean-ucomp1-by-coords [subd]
-  (to-dataset
-   (map (fn [row]
-          (into row
-                (coords-map (select-keys row
-                                         [:cityCode
-                                          :statAreaCode]))))
-        (:rows (mean-ucomp1-by-stat-area subd)))))
+(defn careful-mean [number-or-numbers]
+  (if (number? number-or-numbers)
+    nil
+    (if (< 30 (count number-or-numbers))
+      (mean number-or-numbers))))
 
-
-(defn careful-mean [numbers]
-  (if (< 30 (count numbers))
-    (mean numbers)))
-
-(defn mean-ucomp1s-by-stat-area [subd]
+(defn mean-ucomp1s-by-place [subd]
   (to-dataset
    (for [[k v] ($group-by
                 [:cityCode :statAreaCode]
                 subd)]
      (conj k {:n (nrow v)
               :mean-ucomp1-from-here (careful-mean
-                      ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF 1} v)))
+                                      ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF 1} v)))
               :mean-ucomp1-from-there (careful-mean
-                      ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))}))))
+                                       ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))}))))
 
-(defn mean-ucomp1s-by-coords [subd]
+(defn add-coords-to-place-dataset [place-dataset]
   (to-dataset
    (map (fn [row]
           (into row
                 (coords-map (select-keys row
                                          [:cityCode
                                           :statAreaCode]))))
-        (:rows (mean-ucomp1s-by-stat-area subd)))))
+        (:rows place-dataset))))
+
 
 (defn plot [subd]
   (let [chart (scatter-plot [] [])
@@ -601,7 +594,8 @@ Note: same as (into [] coll), but parallel."
                    (fn [row] (every? #(not (or (nil? %)
                                               (Double/isNaN %))) (vals row)))
                    (:rows
-                    (mean-ucomp1s-by-coords subd))))
+                    (add-coords-to-place-dataset
+                     (mean-ucomp1s-by-place subd)))))
         uu (vec
             (uniformize (map -
                              (map :mean-ucomp1-from-here rows)
@@ -663,7 +657,8 @@ Note: same as (into [] coll), but parallel."
                    (fn [row] (every? #(not (or (nil? %)
                                               (Double/isNaN %))) (vals row)))
                    (:rows
-                    (mean-ucomp1s-by-coords subd))))
+                    (add-coords-to-place-dataset
+                     (mean-ucomp1s-by-place subd)))))
         uu (vec
             (map (comp #(* 255/512 %) inc signum -)
                  (map :mean-ucomp1-from-here rows)
@@ -784,13 +779,9 @@ Note: same as (into [] coll), but parallel."
 
 
 (comment
-  (let [means-data (mean-ucomp1s-by-coords
-                    (get-d))
-        means-data-1 (filter-all-nonnil-and-nonNaN
-                      (add-column :is-ta
-                                  (map #(= 5000 %)
-                                       ($ :cityCode means-data))
-                                  means-data))
+  (let [means-data (filter-all-nonnil-and-nonNaN
+                    (add-coords-to-place-dataset
+                     (mean-ucomp1s-by-place (get-d))))        
         x-axis #(* 1000 %)
         y-axis #(- 1000 (* 1000 %))]
     (plot-by-d3
@@ -798,7 +789,7 @@ Note: same as (into [] coll), but parallel."
       "w" 1000
       "lines" [{"x" (x-axis 0) "y" (y-axis 0)}
                {"x" (x-axis 1) "y" (y-axis 0)}
-         ns      {"x" (x-axis 1) "y" (y-axis 1)}
+               {"x" (x-axis 1) "y" (y-axis 1)}
                {"x" (x-axis 0) "y" (y-axis 1)}
                {"x" (x-axis 0) "y" (y-axis 0)}
                {"x" (x-axis 1) "y" (y-axis 1)}]
@@ -810,15 +801,17 @@ Note: same as (into [] coll), but parallel."
                                      70 "blue"
                                      "#666666")]
                          {"cx" (x-axis (:mean-ucomp1-from-here row))
-                          "cy" (y-axis (- (:mean-ucomp1-from-there row)
-                                          (:mean-ucomp1-from-here row)))
+                          "cy" (y-axis (:mean-ucomp1-from-there row)
+                                       ;; (- (:mean-ucomp1-from-there row)
+                                       ;;    (:mean-ucomp1-from-here row))
+                                       )
                           "r" (/  (sqrt (:n row))
                                   2)
                           "fill" color
                           "stroke" color
                           "opacity" 0.5
                           "text" (place-desc row)}))
-                     (:rows means-data-1))})))
+                     (:rows means-data))})))
 
 
 
@@ -831,23 +824,25 @@ Note: same as (into [] coll), but parallel."
       number-or-numbers
       (median number-or-numbers)))
 
-(defn get-ppm-summary
-  []
+(defn get-sales-summaries
+  [years]
   (let [;;;;
-        medppm-by-place-by-year
+        summary-by-place-by-year
         (->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
                                  :delimiter "\t")
-             (transform-cols-and-rows {:cityCode :cityCode
-                                       :statAreaCode (comp
-                                                      #(if (= % "null")
-                                                         nil
-                                                         %)
-                                                      :statAreaCode)
+             (transform-cols-and-rows {:cityCode (comp parse-int-or-nil
+                                                       :cityCode)
+                                       :statAreaCode (comp parse-int-or-nil
+                                                           ;; nil happens,
+                                                           ;; for example,
+                                                           ;; when "null"
+                                                           ;; appears in data.
+                                                           :statAreaCode)
                                        :pricePerMeter (comp parse-int-or-nil
                                                             :priceByMeter)
-                                       :year #(first (clojure.string/split (:saleDay %) #"-"))})
-             (filter-cols-and-rows #((into #{}
-                                           (map str (range 2006 2012)))
+                                       :year #(parse-int-or-nil
+                                               (first (clojure.string/split (:saleDay %) #"-")))})
+             (filter-cols-and-rows #((into #{} years)
                                      (:year %)))
              cols-and-rows-to-dataset
              ($group-by [:year])
@@ -858,18 +853,22 @@ Note: same as (into [] coll), but parallel."
                           ($group-by [:cityCode :statAreaCode])
                           (map (fn [place-and-data]
                                  [(first place-and-data)
-                                  (median-of-number-or-numbers ($ :pricePerMeter (second place-and-data)))])))]))
+                                  {:medppm (median-of-number-or-numbers ($ :pricePerMeter (second place-and-data)))
+                                   :n (nrow (second place-and-data))}]))
+                          (apply concat)
+                          (apply hash-map))]))
              (apply concat)
              (apply hash-map))
         ;;;;
         unifprice-by-place-by-year
-        (fmap (fn [places-and-medppms]
+        (fmap (fn [summary-by-place]
                 (apply hash-map
                        (apply concat
                               (map vector
-                                   (map first places-and-medppms)
-                                   (uniformize (map second places-and-medppms))))))
-              medppm-by-place-by-year)
+                                   (keys summary-by-place)
+                                   (map double (uniformize (map :medppm
+                                                                (vals summary-by-place))))))))
+              summary-by-place-by-year)
         ;;;;
         places
         (distinct (apply concat
@@ -877,18 +876,20 @@ Note: same as (into [] coll), but parallel."
                                 (map first (second year-and-unifprice-by-place)))
                               unifprice-by-place-by-year)))
         ;;;;
-        unifprices-by-place
+        summary-by-place
         (apply hash-map
                (apply concat
                       (for [place places]
-                        [place (apply hash-map
-                                      (apply concat
-                                             (for [year-and-unifprice-by-place unifprice-by-place-by-year]
-                                               [(keyword (str "unifprice" (:year (first year-and-unifprice-by-place))))
-                                                ((second year-and-unifprice-by-place) place)])))])))
+                        [place (into {}
+                                     (for [year years]
+                                       {(keyword (str "unifprice" year))
+                                        (get-in unifprice-by-place-by-year
+                                                [{:year year} place])
+                                        (keyword (str "n" year))
+                                        (get-in summary-by-place-by-year
+                                                [{:year year} place :n])}))])))
         ]
-    unifprices-by-place))
-
+    summary-by-place))
 
 
 
@@ -906,3 +907,90 @@ Note: same as (into [] coll), but parallel."
 
 
 
+
+;; (defn unified-data-by-place []
+  
+
+;;   )
+
+
+
+(comment
+  (def x
+    (set
+     (keys
+      (get-sales-summaries))))
+  (def y
+    (set
+     (distinct (:rows ($ [:cityCode :statAreaCode] (get-d))))))
+  (distinct
+   (map identity; (comp from-yishuv-code-to-name :cityCode)
+        (clojure.set/difference x y)))
+  (distinct
+   (map identity; (comp from-yishuv-code-to-name :cityCode)
+        (clojure.set/difference y x))))
+
+
+(comment
+  ($join [[:a] [:a]]
+         (dataset [:a :b]
+                  [[1 11]
+                   [2 12]
+                   [3 13]])
+         (dataset [:a :c]
+                  [[1 21]
+                   [2 22]
+                   [4 24]])))
+
+
+(def get-sales-summaries-by-coords
+  (memoize (fn [years]
+             (add-coords-to-place-dataset
+                             (to-dataset (map #(apply conj %)
+                                              (get-sales-summaries years)))))))
+
+(defn sort-colnames [adataset]
+  (dataset (sort (col-names adataset))
+           (:rows adataset)))
+
+
+(comment
+  (let [summaries-by-coords (sort-colnames
+                             (filter-all-nonnil-and-nonNaN
+                              (get-sales-summaries-by-coords (range 2006 2011))))
+        margin 80
+        scale 1000
+        x-axis #(+ margin (* scale %))
+        y-axis #(+ margin (- scale (* scale %)))
+        n-columns (filter #(re-matches #"n.*" (name %))
+                          (col-names summaries-by-coords))]
+    (plot-by-d3
+     {"h" (+ scale margin margin)
+      "w" (+ scale margin margin margin)
+      "lines" [{"x" (x-axis 0) "y" (y-axis 0)}
+               {"x" (x-axis 1) "y" (y-axis 0)}
+               {"x" (x-axis 1) "y" (y-axis 1)}
+               {"x" (x-axis 0) "y" (y-axis 1)}
+               {"x" (x-axis 0) "y" (y-axis 0)}
+               {"x" (x-axis 1) "y" (y-axis 1)}]
+      "circles" (map (fn [row]
+                       (let [color (case (:cityCode row)
+                                     5000 "white"
+                                     4000 "red"
+                                     3000 "yellow"
+                                     6400 "magenta"
+                                     7000 "blue"
+                                     3797 "#44ee99"
+                                     "#777777")]
+                         {"cx" (x-axis (log (/ (:unifprice2008 row) (:unifprice2006 row))))
+                          "cy" (y-axis (log (/ (:unifprice2010 row) (:unifprice2006 row))))
+                          "r" (/ (sqrt (:n2006 row))
+                                 5)
+                          "fill" color
+                          "stroke" color
+                          "opacity" 0.5
+                          "text" (place-desc row)}))
+                     (filter (fn [row]
+                               (< 10
+                                  (apply min (map row n-columns))))
+                             (:rows summaries-by-coords)))})))
