@@ -725,7 +725,7 @@ Note: same as (into [] coll), but parallel."
 
 
 (comment
-  (spit "/home/we/projects/try-web/data.json"
+  (spit "client/data.json"
         (json/write-str
          (gen-map-data
           (get-d)
@@ -788,7 +788,7 @@ Note: same as (into [] coll), but parallel."
 
 
 (defn plot-by-d3 [d3data]
-  (spit "/home/we/projects/try-web/d3data.json"
+  (spit "client/d3data.json"
         (json/write-str d3data)))
 
 
@@ -857,7 +857,7 @@ Note: same as (into [] coll), but parallel."
                                            (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
                                      ($ :cityCode data))
                                 data)))
-     "/home/we/projects/try-web/my-scatter/scatter.csv")))
+     "client/my-scatter/scatter.csv")))
 
 
 ;;;;;;;;;;;
