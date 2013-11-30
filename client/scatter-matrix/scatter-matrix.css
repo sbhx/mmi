@@ -1,11 +1,11 @@
-svg { font-size: 20px; }
+svg { font-size: 40px; }
 
 .axis { shape-rendering: crispEdges; }
-.axis line { stroke: #ddd; stroke-width: 1px; }
+.axis line { stroke: #fff; stroke-width: 1px; }
 .axis path { display: none; }
 
 rect.extent { fill: #000; fill-opacity: .125; stroke: #fff; }
-rect.frame { fill: #ddd; fill-opacity: .7; stroke: #aaa; }
+rect.frame { fill: #bbb; fill-opacity: .7; stroke: #aaa; }
 
 circle { fill: #ccc; fill-opacity: .5; }
 

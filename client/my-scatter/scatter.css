@@ -1,11 +1,11 @@
 body {
   margin: auto;
   width: 10000px;
-  font-weight: 300; font-family: "Helvetica Neue"; font-size: 30px;
+  font-weight: 300; font-family: "Helvetica Neue"; font-size: 40px;
 }
 
 h2 { font-weight: inherit; margin: 0; }
-pre { background-color: #eee; border-radius: 50px; border: 1px solid #ddd; width: 600px; padding: 100px; }
+pre { background-color: #aaa; border-radius: 50px; border: 1px solid #ddd; width: 600px; padding: 100px; }
 
 .scatter-matrix-control { float: left; margin-right: 100px; }
 .scatter-matrix-variable-control ul { list-style: none; padding-left: 100px; }

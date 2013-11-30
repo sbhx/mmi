@@ -5,7 +5,7 @@
 ScatterMatrix = function(url) {
     this.__url = url;
     this.__data = undefined;
-    this.__cell_size = 400;
+    this.__cell_size = 800;
 };
 
 ScatterMatrix.prototype.cellSize = function(n) {
@@ -192,7 +192,9 @@ ScatterMatrix.prototype.__draw = function(container_el, color_variable, color, t
             data.forEach(function(d) { d[trait] = +d[trait]; });
 
             var value = function(d) { return d[trait]; },
-            domain = [0,1];//[d3.min(data, value), d3.max(data, value)],
+            domain = 
+                //[-1,1];
+                [d3.min(data, value), d3.max(data, value)],
             range_x = [padding / 2, size - padding / 2],
             range_y = [padding / 2, size - padding / 2];
 
@@ -299,7 +301,7 @@ ScatterMatrix.prototype.__draw = function(container_el, color_variable, color, t
                 .on("mouseover", function() {
                     var desc = "__"+this.__data__['desc']+"__";
                     var circle = d3.select(this)
-                        .attr("r", 15);
+                        .attr("r", 12);
                     tooltip.text(desc);
                 })
                 .on("mouseout", function() {
