@@ -195,7 +195,8 @@ Note: same as (into [] coll), but parallel."
                            :TelephonPUF
                            :TkufatSiyumBniyatDiraMchvPUF
                            :TzfifutDiurPUF
-                           :TzuratAchzakatDira2008MchvPUF ])
+                           :TzuratAchzakatDira2008MchvPUF
+                           :YabeshetMotzaByAvMchlkMchvPUF])
 
 
 
@@ -247,6 +248,7 @@ Note: same as (into [] coll), but parallel."
 
 (def standard-column-fns
   (conj (identity-map [:EretzLeidaZkPUF
+                       :YabeshetMotzaByAvMchlkMchvPUF
                        :KtvtLifney5ShanaMachozMchvPUF
                        :KtvtLifney5ShanaMetropolinPUF
                        :OleShnot90MchvPUF
@@ -561,22 +563,63 @@ Note: same as (into [] coll), but parallel."
            [:cityCode :statAreaCode]
            subd))
 
+(defn to-seq [val-or-vals]
+  (if (sequential? val-or-vals)
+    val-or-vals
+    [val-or-vals]))
+
 (defn careful-mean [number-or-numbers]
   (if (number? number-or-numbers)
     nil
     (if (< 30 (count number-or-numbers))
       (mean number-or-numbers))))
 
-(defn mean-ucomp1s-by-place [subd]
+(defn measures-by-place [subd]
   (to-dataset
    (for [[k v] ($group-by
                 [:cityCode :statAreaCode]
                 subd)]
      (conj k {:n (nrow v)
-              :mean-ucomp1-from-here (careful-mean
-                                      ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF 1} v)))
-              :mean-ucomp1-from-there (careful-mean
-                                       ($ :ucomp1 ($where {:KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))}))))
+              :prob-n (careful-mean
+                       ($ :new-apt v))
+              :prob-m (careful-mean
+                       (map #(if (= 1 %) 0 1)
+                            (to-seq
+                             ($ :KtvtLifney5ShanaMachozMchvPUF v))))
+              :prob-o-om (careful-mean
+                          (map #(if (= 1 %) 1 0)
+                               (to-seq
+                                ($ :OleShnot90MchvPUF
+                                   ($where {:new-apt {:$ne 1}
+                                            :KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))))
+              :prob-o-os (careful-mean
+                          (map #(if (= 1 %) 1 0)
+                               (to-seq ($ :OleShnot90MchvPUF
+                                          ($where {:new-apt {:$ne 1}
+                                                   :KtvtLifney5ShanaMachozMchvPUF 1} v)))))
+              :prob-a-om (careful-mean
+                          (map #(if (= 3 %) 1 0)
+                               (to-seq
+                                ($ :YabeshetMotzaByAvMchlkMchvPUF
+                                   ($where {:new-apt {:$ne 1}
+                                            :KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))))
+              :prob-a-os (careful-mean
+                          (map #(if (= 3 %) 1 0)
+                               (to-seq ($ :YabeshetMotzaByAvMchlkMchvPUF
+                                          ($where {:new-apt {:$ne 1}
+                                                   :KtvtLifney5ShanaMachozMchvPUF 1} v)))))
+              :mean-ucomp1-nm (careful-mean
+                               ($ :ucomp1 ($where {:new-apt 1
+                                                   :KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))
+              ;; :mean-ucomp1-ns (careful-mean
+              ;;                  ($ :ucomp1 ($where {:new-apt 1
+              ;;                                      :KtvtLifney5ShanaMachozMchvPUF 1} v)))
+              :mean-ucomp1-om (careful-mean
+                               ($ :ucomp1 ($where {:new-apt {:$ne 1}
+                                                   :KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))
+              :mean-ucomp1-os (careful-mean
+                               ($ :ucomp1 ($where {:new-apt {:$ne 1}
+                                                   :KtvtLifney5ShanaMachozMchvPUF 1} v)))}))))
 
 (defn add-coords-to-place-dataset [place-dataset]
   (to-dataset
@@ -595,10 +638,10 @@ Note: same as (into [] coll), but parallel."
                                               (Double/isNaN %))) (vals row)))
                    (:rows
                     (add-coords-to-place-dataset
-                     (mean-ucomp1s-by-place subd)))))
+                     (measures-by-place subd)))))
         uu (vec
             (uniformize (map -
-                             (map :mean-ucomp1-from-here rows)
+                             (map :mean-ucomp1-omfrom-here rows)
                              (map :mean-ucomp1-from-there rows))))] ;; NOTE THIS!
     (doseq [row rows]
       (add-points chart
@@ -658,7 +701,7 @@ Note: same as (into [] coll), but parallel."
                                               (Double/isNaN %))) (vals row)))
                    (:rows
                     (add-coords-to-place-dataset
-                     (mean-ucomp1s-by-place subd)))))
+                     (measures-by-place subd)))))
         uu (vec
             (map (comp #(* 255/512 %) inc signum -)
                  (map :mean-ucomp1-from-here rows)
@@ -692,33 +735,6 @@ Note: same as (into [] coll), but parallel."
           ;;                  (get-d))
           ))))
 
-
-(defn d-from-here [d] ($where
-                       {:KtvtLifney5ShanaMachozMchvPUF {:$lt 4}} d))
-
-(defn d-from-there [d] ($where
-                        {:KtvtLifney5ShanaMachozMchvPUF {:$gt 3 :$lt 98}} d))
-
-(defn d-new-apt [d] ($where {:new-apt 1} d))
-
-(defn d-old-apt [d] ($where {:new-apt 0} d))
-
-(comment
-  (println (map dim [d
-                     d-from-here d-from-there
-                     d-new-apt d-old-apt])))
-
-(comment
-  (sdisplay 1
-            (s/horizontal-panel
-             :items (map #(ChartPanel. (plot-uucomp1 %))
-                         [;;d-new-apt d-old-apt
-                          d-from-here d-from-there
-                          ]))
-            nil))
--
-
-  ;;;;;;;;;;;;;;
 
 (comment
   ;; google static map
@@ -779,9 +795,12 @@ Note: same as (into [] coll), but parallel."
 
 
 (comment
-  (let [means-data (filter-all-nonnil-and-nonNaN
-                    (add-coords-to-place-dataset
-                     (mean-ucomp1s-by-place (get-d))))        
+  (let [data (filter-all-nonnil-and-nonNaN
+              ($ [:prob-m :prob-n
+                  :mean-ucomp1-os :mean-ucomp1-om
+                  :n :cityCode]
+                 (add-coords-to-place-dataset
+                  (measures-by-place (get-d)))))        
         x-axis #(* 1000 %)
         y-axis #(- 1000 (* 1000 %))]
     (plot-by-d3
@@ -800,20 +819,45 @@ Note: same as (into [] coll), but parallel."
                                      3000 "yellow"
                                      70 "blue"
                                      "#666666")]
-                         {"cx" (x-axis (:mean-ucomp1-from-here row))
-                          "cy" (y-axis (:mean-ucomp1-from-there row)
-                                       ;; (- (:mean-ucomp1-from-there row)
-                                       ;;    (:mean-ucomp1-from-here row))
-                                       )
-                          "r" (/  (sqrt (:n row))
-                                  2)
+                         {"cx" (x-axis (:prob-m row))
+                          "cy" (y-axis (-
+                                        (:mean-ucomp1-om row)
+                                        (:mean-ucomp1-os row)))
+                          "r" 5
+                          ;; (/ (sqrt (:n row))
+                          ;;     2)
                           "fill" color
                           "stroke" color
                           "opacity" 0.5
                           "text" (place-desc row)}))
-                     (:rows means-data))})))
+                     (:rows data))})))
 
 
+(comment
+  (let [data (filter-all-nonnil-and-nonNaN
+              ($ [:prob-m :prob-n
+                  :prob-o-os :prob-o-om
+                  :prob-a-os :prob-a-om
+                  :mean-ucomp1-os :mean-ucomp1-om
+                  :n :cityCode :statAreaCode]
+                 (add-coords-to-place-dataset
+                  (measures-by-place (get-d)))))]
+    (save
+     ($ [:prob-m :prob-n
+         :prob-o-os :prob-o-om
+         :prob-a-os :prob-a-om
+         :mean-ucomp1-os :mean-ucomp1-om
+         :yishuv-name :desc]
+        (add-column :desc
+                    (map place-desc
+                         (:rows data))
+                    (add-column :yishuv-name
+                                (map (comp from-yishuv-code-to-name
+                                           (nil-to-val "other")
+                                           (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
+                                     ($ :cityCode data))
+                                data)))
+     "/home/we/projects/try-web/my-scatter/scatter.csv")))
 
 
 ;;;;;;;;;;;
@@ -994,3 +1038,7 @@ Note: same as (into [] coll), but parallel."
                                (< 10
                                   (apply min (map row n-columns))))
                              (:rows summaries-by-coords)))})))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;
