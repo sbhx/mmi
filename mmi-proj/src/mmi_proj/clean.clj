@@ -248,8 +248,6 @@ Note: same as (into [] coll), but parallel."
 (def standard-column-fns
   (conj (identity-map [:EretzLeidaZkPUF
                        :YabeshetMotzaByAvMchlkMchvPUF
-                       :KtvtLifney5ShanaMachozMchvPUF
-                       :KtvtLifney5ShanaMetropolinPUF
                        :OleShnot90MchvPUF
                        :RovaKtvtMegurimPUF
                        :TatRovaKtvtMegurimPUF
@@ -258,8 +256,10 @@ Note: same as (into [] coll), but parallel."
                        :TkufatSiyumBniyatDiraMchvPUF
                        ]
                       )
-        {:cityCode :SmlYishuvPUF
-         :statAreaCode :SmlEzorStatistiKtvtMegurimPUF
+        {:KtvtLifney5ShanaMachozMchvPUF (comp parse-int-or-nil :KtvtLifney5ShanaMachozMchvPUF)
+         :KtvtLifney5ShanaMetropolinPUF (comp parse-int-or-nil :KtvtLifney5ShanaMetropolinPUF)
+         :cityCode (comp parse-int-or-nil :SmlYishuvPUF)
+         :statAreaCode (comp parse-int-or-nil :SmlEzorStatistiKtvtMegurimPUF)
          :Hchns2008BrutoSachirPUF-int (comp parse-int-or-nil :Hchns2008BrutoSachirPUF)
          :Hchns2008MbMchvPUF-int (comp parse-int-or-nil :Hchns2008MbMchvPUF)
          :DiraNosefetAchrPUF=1 (comp (specific-val-to-1-others-to-0 "1")
@@ -364,11 +364,12 @@ Note: same as (into [] coll), but parallel."
   (load-file comp1-filename))
 
 
-(defn replace-columns-by-linear-combination
+(defn add-linear-combination-column
   [coeff-map new-col-name cols-and-rows]
   (let [coeff-vals (vals coeff-map)
         coeff-col-names (keys coeff-map)]
-    {:column-names (:column-names cols-and-rows)
+    {:column-names (cons new-col-name
+                         (:column-names cols-and-rows))
      :rows (for [row (:rows cols-and-rows)]
              (let [relevant-vals (map row coeff-col-names)
                    lincomb (if (every? identity relevant-vals)
@@ -377,9 +378,23 @@ Note: same as (into [] coll), but parallel."
                               (map *
                                    relevant-vals
                                    coeff-vals)))]
-               (assoc
-                   (apply dissoc row (keys coeff-map))
+               (assoc row
                  new-col-name lincomb)))}))
+
+(defn remove-columns
+  [col-names-to-remove cols-and-rows]
+  {:column-names (filter (complement (set col-names-to-remove))
+                         (:column-names cols-and-rows))
+   :rows (for [row (:rows cols-and-rows)]
+           (apply dissoc row col-names-to-remove))})
+
+
+(defn replace-columns-by-linear-combination
+  [coeff-map new-col-name cols-and-rows]
+  (remove-columns (keys coeff-map)
+                  (add-linear-combination-column coeff-map
+                                                 new-col-name
+                                                 cols-and-rows)))
 
 
 
@@ -480,7 +495,7 @@ Note: same as (into [] coll), but parallel."
               pre-d-1 (conj-cols pre-d
                                  (dataset [:mean-x :mean-y]
                                           (map
-                                           ; change nils with {}s
+                                        ; change nils with {}s
                                            #(if % % {}) 
                                            (map coords-map
                                                 (:rows
@@ -622,7 +637,7 @@ Note: same as (into [] coll), but parallel."
               ;;                  ($ :ucomp1 ($where {:new-apt 1
               ;;                                      :KtvtLifney5ShanaMachozMchvPUF 1} v)))
               :mean-ucomp1 (careful-mean
-                               ($ :ucomp1 v))
+                            ($ :ucomp1 v))
               :mean-ucomp1-om (careful-mean
                                ($ :ucomp1 ($where {:new-apt {:$ne 1}
                                                    :KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))
@@ -766,18 +781,18 @@ Note: same as (into [] coll), but parallel."
                          "maptype=roadmap&"
                          "markers="]
                         (apply str "color:0xFF00FF|"
-                             (for [i (range n)]
-                               (str 
-                                (format "%06X" (+ i
-                                                  (* 256 256 (- 256 i))))
-                                "|"
-                                (format "%.2f" (+ (- (first center) 0.05)
-                                                  (/ (rand) 10)))
-                                ","
-                                (format "%.2f" (+ (- (second center) 0.05)
-                                                  (/ (rand) 10)))
-                                "|")
-                               ))
+                               (for [i (range n)]
+                                 (str 
+                                  (format "%06X" (+ i
+                                                    (* 256 256 (- 256 i))))
+                                  "|"
+                                  (format "%.2f" (+ (- (first center) 0.05)
+                                                    (/ (rand) 10)))
+                                  ","
+                                  (format "%.2f" (+ (- (second center) 0.05)
+                                                    (/ (rand) 10)))
+                                  "|")
+                                 ))
                         "&markers="
                         (apply str "color:0x00FF00|"
                                (for [i (range n)]
@@ -879,8 +894,8 @@ Note: same as (into [] coll), but parallel."
 (defn median-of-number-or-numbers
   [number-or-numbers]
   (if (number? number-or-numbers)
-      number-or-numbers
-      (median number-or-numbers)))
+    number-or-numbers
+    (median number-or-numbers)))
 
 (defn get-sales-summary-by-place-map
   [years]
@@ -967,7 +982,7 @@ Note: same as (into [] coll), but parallel."
 
 
 ;; (defn unified-data-by-place []
-  
+
 
 ;;   )
 
@@ -1188,12 +1203,12 @@ Note: same as (into [] coll), but parallel."
                                sets)))
         sets-vec (vec sets)]
     (map second
-            (sort-by first
-                     (apply concat
-                            (for [i (range (count sets-vec))]
-                              (let [aset (sets-vec i)]
-                                (for [j aset]
-                                  [(int j) (int i)]))))))))
+         (sort-by first
+                  (apply concat
+                         (for [i (range (count sets-vec))]
+                           (let [aset (sets-vec i)]
+                             (for [j aset]
+                               [(int j) (int i)]))))))))
 
 (comment
   (let [data (filter-all-nonnil-and-nonNaN
@@ -1229,12 +1244,12 @@ Note: same as (into [] coll), but parallel."
   (let [pre-data (filter-all-nonnil-and-nonNaN
                   ($ [
                       :prob-a-om :prob-a-os :prob-o-om :prob-o-os
-                          :mean-ucomp1-om :mean-ucomp1-os
-                          :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
-                          :n2006 :n2007 :n2008 :n2009 :n2010
-                          :cityCode :statAreaCode
-                          :mean-x :mean-y]
-                         (get-join-by-coords))) 
+                      :mean-ucomp1-om :mean-ucomp1-os
+                      :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+                      :n2006 :n2007 :n2008 :n2009 :n2010
+                      :cityCode :statAreaCode
+                      :mean-x :mean-y]
+                     (get-join-by-coords))) 
         data (filter-all-nonnil-and-nonNaN
               ($ [:ucomp1-change
                   :prob-a-change 
@@ -1273,17 +1288,17 @@ Note: same as (into [] coll), but parallel."
                                                                ($ :unifprice2010 pre-data)
                                                                ($ :unifprice2009 pre-data))
                               :n-change-2007-2006 (map log-ratio
-                                                ($ :n2007 pre-data)
-                                                ($ :n2006 pre-data))
+                                                       ($ :n2007 pre-data)
+                                                       ($ :n2006 pre-data))
                               :n-change-2008-2007 (map log-ratio
-                                                ($ :n2008 pre-data)
-                                                ($ :n2007 pre-data))
+                                                       ($ :n2008 pre-data)
+                                                       ($ :n2007 pre-data))
                               :n-change-2009-2008 (map log-ratio
-                                                ($ :n2009 pre-data)
-                                                ($ :n2008 pre-data))
+                                                       ($ :n2009 pre-data)
+                                                       ($ :n2008 pre-data))
                               :n-change-2010-2009 (map log-ratio
-                                                ($ :n2010 pre-data)
-                                                ($ :n2009 pre-data))})
+                                                       ($ :n2010 pre-data)
+                                                       ($ :n2009 pre-data))})
                             pre-data)))
         clusters (som-batch-train
                   (to-matrix
@@ -1418,24 +1433,24 @@ Note: same as (into [] coll), but parallel."
                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
 
 
+(defn random-color
+  []
+  (format "#%06X"
+          (rand-int 16777216)))
 
-  (defn random-color
-    []
-    (format "#%06X"
-            (rand-int 16777216)))
 
 
 (comment
   (let [pre-data (filter-all-nonnil-and-nonNaN
-                          ($ [
-                              :prob-a :prob-a-om :prob-a-os
-                              :prob-o :prob-o-om :prob-o-os
-                              :mean-ucomp1-om :mean-ucomp1-os
-                              :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
-                              :n2006 :n2007 :n2008 :n2009 :n2010
-                              :cityCode :statAreaCode
-                              :mean-x :mean-y]
-                             (get-join-by-coords)))
+                  ($ [
+                      :prob-a :prob-a-om :prob-a-os
+                      :prob-o :prob-o-om :prob-o-os
+                      :mean-ucomp1-om :mean-ucomp1-os
+                      :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+                      :n2006 :n2007 :n2008 :n2009 :n2010
+                      :cityCode :statAreaCode
+                      :mean-x :mean-y]
+                     (get-join-by-coords)))
         data pre-data
         cluster-to-json
         (fn [colnames filename]
@@ -1466,5 +1481,116 @@ Note: same as (into [] coll), but parallel."
 
 
 
-  
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def extended-components-filename
+  "/home/we/workspace/data/pca/extended-components.clj")
+
+
+(comment
+  (time (let [pca-result
+              (let [data-for-pca (->> (read-cols-and-rows puf-filename
+                                                          :seq-transformer #(sample % :size 10000) )
+                                      (transform-cols-and-rows
+                                       (select-keys standard-column-fns pca-columns))
+                                      cols-and-rows-to-dataset
+                                      filter-all-nonnil )
+                    pca (principal-components (to-matrix data-for-pca))]
+                {:pca pca
+                 :col-names (col-names data-for-pca)})
+              components (vec (for [i (range (ncol data-for-pca))]
+                                (apply hash-map (interleave (:col-names pca-result)
+                                                            ($ i (:rotation (:pca pca-result)))))))]
+          (spit
+           extended-components-filename
+           (with-out-str
+             (pprint components)))
+          (println ["wrote" extended-components-filename]))))
+
+(def extended-components
+  (load-file extended-components-filename))
+
+
+(defn get-xmeasures-by-place [subd]
+  (to-dataset
+   (for [[k v] ($group-by
+                [:cityCode :statAreaCode]
+                subd)]
+     (let [s ($where {:KtvtLifney5ShanaMachozMchvPUF 1} v)
+           m ($where {:KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)]
+       (conj k {:n (nrow v)
+                :mean-uxcomp0-s (careful-mean ($ :uxcomp0 s))
+                :mean-uxcomp1-s (careful-mean ($ :uxcomp1 s))
+                :mean-uxcomp2-s (careful-mean ($ :uxcomp2 s))
+                :mean-uxcomp3-s (careful-mean ($ :uxcomp3 s))
+                :mean-uxcomp0-m (careful-mean ($ :uxcomp0 m))
+                :mean-uxcomp1-m (careful-mean ($ :uxcomp1 m))
+                :mean-uxcomp2-m (careful-mean ($ :uxcomp2 m))
+                :mean-uxcomp3-m (careful-mean ($ :uxcomp3 m))})))))
+
+
+
+(let [pre-d
+      (->> (read-cols-and-rows puf-filename)
+           (transform-cols-and-rows (apply dissoc standard-column-fns
+                                           col-names-to-avoid))
+           (add-coords-to-place-dataset)
+           (add-linear-combination-column (extended-components 0) :xcomp0)
+           (add-linear-combination-column (extended-components 1) :xcomp1)
+           (add-linear-combination-column (extended-components 2) :xcomp2)
+           (add-linear-combination-column (extended-components 3) :xcomp3)
+           (remove-columns (keys (extended-components 0)))
+           cols-and-rows-to-dataset
+           filter-all-nonnil)
+      pre-d-1 (conj-cols pre-d
+                         (dataset [:mean-x :mean-y]
+                                  (map
+                                        ; change nils with {}s
+                                   #(if % % {}) 
+                                   (map coords-map
+                                        (:rows
+                                         ($ [:cityCode
+                                             :statAreaCode]
+                                            pre-d))))))
+      pre-d-2 (conj-cols pre-d-1
+                         {:uxcomp0 (map double (uniformize ($ :xcomp0 pre-d-1)))
+                          :uxcomp1 (map double (uniformize ($ :xcomp1 pre-d-1)))
+                          :uxcomp2 (map double (uniformize ($ :xcomp2 pre-d-1)))
+                          :uxcomp3 (map double (uniformize ($ :xcomp3 pre-d-1)))})
+      measures-by-place (get-xmeasures-by-place pre-d-2)
+      measures-by-coords (filter-all-nonnil-and-nonNaN
+                          (add-coords-to-place-dataset
+                           measures-by-place))
+      measures-by-coords-with-info (add-column
+                                    :yishuv-name (map (comp from-yishuv-code-to-name
+                                                            (nil-to-val "other")
+                                                            (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
+                                                      ($ :cityCode measures-by-coords))
+                                    (add-column :desc (map place-desc
+                                                           (:rows measures-by-coords))
+                                                measures-by-coords))
+      ]
+  (save
+   ($ [:desc
+       :mean-uxcomp0-m
+       :mean-uxcomp0-s
+       :mean-uxcomp1-m
+       :mean-uxcomp1-s
+       :mean-uxcomp2-m
+       :mean-uxcomp2-s
+       :mean-uxcomp3-m
+       :mean-uxcomp3-s
+         ;; :mean-x
+         ;; :mean-y
+       ;; :n                             
+       :yishuv-name]
+        measures-by-coords-with-info)
+     "../client/my-scatter/scatter.csv"))
+
+
+
+;;;;;;;;;;;;;;;;
+
+- arrows
+- stability of pca wrt randomization

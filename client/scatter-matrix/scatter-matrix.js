@@ -297,16 +297,16 @@ ScatterMatrix.prototype.__draw = function(container_el, color_variable, color, t
                 .attr("class", function(d) { return color_class(d); })
                 .attr("cx", function(d) { return x[p.x](d[p.x]); })
                 .attr("cy", function(d) { return y[p.y](d[p.y]); })
-                .attr("r", 8)
+                .attr("r", 12)
                 .on("mouseover", function() {
                     var desc = "__"+this.__data__['desc']+"__";
                     var circle = d3.select(this)
-                        .attr("r", 12);
+                        .attr("r", 20);
                     tooltip.text(desc);
                 })
                 .on("mouseout", function() {
                     d3.select(this)
-                        .attr("r", 8);
+                        .attr("r", 12);
                     tooltip.text("___________________");                      
                 })
             ;
