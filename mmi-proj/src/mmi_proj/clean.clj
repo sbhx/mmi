@@ -30,7 +30,8 @@
   (:use clj-utils.visual)
   (:use [c2.core :only (unify)])
   (:use hiccup.core)
-  (:use clojure.stacktrace))
+  (:use clojure.stacktrace)
+  (:use [clj-ml data clusterers]))
 
 (apply require clojure.main/repl-requires)
 
@@ -584,6 +585,14 @@ Note: same as (into [] coll), but parallel."
                        (map #(if (= 1 %) 0 1)
                             (to-seq
                              ($ :KtvtLifney5ShanaMachozMchvPUF v))))
+              :prob-o (careful-mean
+                       (map #(if (= 1 %) 1 0)
+                            (to-seq
+                             ($ :OleShnot90MchvPUF v))))
+              :prob-a (careful-mean
+                       (map #(if (= 3 %) 1 0)
+                            (to-seq
+                             ($ :YabeshetMotzaByAvMchlkMchvPUF v))))
               :prob-o-om (careful-mean
                           (map #(if (= 1 %) 1 0)
                                (to-seq
@@ -612,6 +621,8 @@ Note: same as (into [] coll), but parallel."
               ;; :mean-ucomp1-ns (careful-mean
               ;;                  ($ :ucomp1 ($where {:new-apt 1
               ;;                                      :KtvtLifney5ShanaMachozMchvPUF 1} v)))
+              :mean-ucomp1 (careful-mean
+                               ($ :ucomp1 v))
               :mean-ucomp1-om (careful-mean
                                ($ :ucomp1 ($where {:new-apt {:$ne 1}
                                                    :KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)))
@@ -1216,7 +1227,8 @@ Note: same as (into [] coll), but parallel."
 
 (comment
   (let [pre-data (filter-all-nonnil-and-nonNaN
-                      ($ [
+                  ($ [
+                      :prob-a-om :prob-a-os :prob-o-om :prob-o-os
                           :mean-ucomp1-om :mean-ucomp1-os
                           :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
                           :n2006 :n2007 :n2008 :n2009 :n2010
@@ -1225,6 +1237,9 @@ Note: same as (into [] coll), but parallel."
                          (get-join-by-coords))) 
         data (filter-all-nonnil-and-nonNaN
               ($ [:ucomp1-change
+                  :prob-a-change 
+                  :prob-o-change
+                  :ucomp1-change
                   :unifprice-change-2007-2006
                   :unifprice-change-2008-2007
                   :unifprice-change-2009-2008
@@ -1236,7 +1251,13 @@ Note: same as (into [] coll), but parallel."
                   :cityCode :statAreaCode
                   :mean-x :mean-y]
                  (conj-cols (to-dataset
-                             {:ucomp1-change (map logits-difference
+                             {:prob-a-change (map logits-difference
+                                                  ($ :prob-a-om pre-data)
+                                                  ($ :prob-a-os pre-data))
+                              :prob-o-change (map logits-difference
+                                                  ($ :prob-o-om pre-data)
+                                                  ($ :prob-o-os pre-data))
+                              :ucomp1-change (map logits-difference
                                                   ($ :mean-ucomp1-om pre-data)
                                                   ($ :mean-ucomp1-os pre-data))
                               :unifprice-change-2007-2006 (map logits-difference
@@ -1267,6 +1288,8 @@ Note: same as (into [] coll), but parallel."
         clusters (som-batch-train
                   (to-matrix
                    ($ [:ucomp1-change
+                       :prob-a-change 
+                       :prob-o-change 
                        :unifprice-change-2007-2006
                        :unifprice-change-2008-2007
                        :unifprice-change-2009-2008
@@ -1287,3 +1310,161 @@ Note: same as (into [] coll), but parallel."
                                  :label
                                  int
                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
+
+
+(defn incanter-dataset-to-weka-dataset
+  [name incanter-dataset]
+  (make-dataset name
+                (col-names incanter-dataset)
+                (map vals (:rows incanter-dataset))))
+
+
+(defn weka-dataset-to-incanter-dataset
+  [weka-dataset]
+  (dataset 
+   (attribute-names weka-dataset)
+   (map instance-to-map weka-dataset)))
+
+
+
+(comment
+  (let [pre-data (filter-all-nonnil-and-nonNaN
+                  ($ [
+                      :prob-a-om :prob-a-os :prob-o-om :prob-o-os
+                      :mean-ucomp1-om :mean-ucomp1-os
+                      :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+                      :n2006 :n2007 :n2008 :n2009 :n2010
+                      :cityCode :statAreaCode
+                      :mean-x :mean-y]
+                     (get-join-by-coords))) 
+        data (filter-all-nonnil-and-nonNaN
+              ($ [:ucomp1-change
+                  :prob-a-change 
+                  :prob-o-change
+                  :ucomp1-change
+                  :unifprice-change-2007-2006
+                  :unifprice-change-2008-2007
+                  :unifprice-change-2009-2008
+                  :unifprice-change-2010-2009
+                  :n-change-2007-2006
+                  :n-change-2008-2007
+                  :n-change-2009-2008
+                  :n-change-2010-2009
+                  :cityCode :statAreaCode
+                  :mean-x :mean-y]
+                 (conj-cols (to-dataset
+                             {:prob-a-change (map logits-difference
+                                                  ($ :prob-a-om pre-data)
+                                                  ($ :prob-a-os pre-data))
+                              :prob-o-change (map logits-difference
+                                                  ($ :prob-o-om pre-data)
+                                                  ($ :prob-o-os pre-data))
+                              :ucomp1-change (map logits-difference
+                                                  ($ :mean-ucomp1-om pre-data)
+                                                  ($ :mean-ucomp1-os pre-data))
+                              :unifprice-change-2007-2006 (map logits-difference
+                                                               ($ :unifprice2007 pre-data)
+                                                               ($ :unifprice2006 pre-data))
+                              :unifprice-change-2008-2007 (map logits-difference
+                                                               ($ :unifprice2008 pre-data)
+                                                               ($ :unifprice2007 pre-data))
+                              :unifprice-change-2009-2008 (map logits-difference
+                                                               ($ :unifprice2009 pre-data)
+                                                               ($ :unifprice2008 pre-data))
+                              :unifprice-change-2010-2009 (map logits-difference
+                                                               ($ :unifprice2010 pre-data)
+                                                               ($ :unifprice2009 pre-data))
+                              :n-change-2007-2006 (map log-ratio
+                                                       ($ :n2007 pre-data)
+                                                       ($ :n2006 pre-data))
+                              :n-change-2008-2007 (map log-ratio
+                                                       ($ :n2008 pre-data)
+                                                       ($ :n2007 pre-data))
+                              :n-change-2009-2008 (map log-ratio
+                                                       ($ :n2009 pre-data)
+                                                       ($ :n2008 pre-data))
+                              :n-change-2010-2009 (map log-ratio
+                                                       ($ :n2010 pre-data)
+                                                       ($ :n2009 pre-data))})
+                            pre-data)))
+        clusterer (make-clusterer :k-means
+                                  :number-clusters 3
+                                  :number-iterations 10000)
+        weka-dataset (incanter-dataset-to-weka-dataset :data
+                                                       ($ [:ucomp1-change
+                                                           ;; :prob-a-change 
+                                                           ;; :prob-o-change 
+                                                           :unifprice-change-2007-2006
+                                                           :unifprice-change-2008-2007
+                                                           :unifprice-change-2009-2008
+                                                           :unifprice-change-2010-2009
+                                                           ;; :n-change-2007-2006
+                                                           ;; :n-change-2008-2007
+                                                           ;; :n-change-2009-2008
+                                                           ;; :n-change-2010-2009
+                                                           ]
+                                                          data))
+        _ (clusterer-build clusterer
+                           weka-dataset)
+        labels (map (comp parse-int-or-nil name :class instance-to-map)
+                    (clusterer-cluster clusterer
+                                       weka-dataset))
+        labelled-data (conj-cols data {:label labels})]
+    (spit "../client/data2.json"
+          (json/write-str
+           (general-gen-map-data labelled-data
+                                 :label
+                                 int
+                                 ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
+
+
+
+  (defn random-color
+    []
+    (format "#%06X"
+            (rand-int 16777216)))
+
+
+(comment
+  (let [pre-data (filter-all-nonnil-and-nonNaN
+                          ($ [
+                              :prob-a :prob-a-om :prob-a-os
+                              :prob-o :prob-o-om :prob-o-os
+                              :mean-ucomp1-om :mean-ucomp1-os
+                              :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+                              :n2006 :n2007 :n2008 :n2009 :n2010
+                              :cityCode :statAreaCode
+                              :mean-x :mean-y]
+                             (get-join-by-coords)))
+        data pre-data
+        cluster-to-json
+        (fn [colnames filename]
+          (let [ 
+                clusterer (make-clusterer :expectation-maximization
+                                          :number-clusters 10)
+                weka-dataset (incanter-dataset-to-weka-dataset
+                              :data ($ colnames data))
+                _ (clusterer-build clusterer
+                                   weka-dataset)
+                labels (map (comp parse-int-or-nil name :class instance-to-map)
+                            (clusterer-cluster clusterer
+                                               weka-dataset))
+                _ (println (frequencies labels))
+                labelled-data (conj-cols data {:label labels})
+                num-classes (count (distinct labels))] 
+            (spit filename
+                  (json/write-str
+                   (general-gen-map-data labelled-data
+                                         :label
+                                         int
+                                         (vec (repeatedly num-classes random-color))
+                                         )))))]
+    (cluster-to-json [:prob-a-os :prob-o-os :mean-ucomp1-os]
+                     "../client/data1.json")
+    (cluster-to-json [:prob-a :prob-o :mean-ucomp1]
+                     "../client/data2.json")))
+
+
+
+  
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
