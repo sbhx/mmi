@@ -1530,67 +1530,111 @@ Note: same as (into [] coll), but parallel."
                 :mean-uxcomp3-m (careful-mean ($ :uxcomp3 m))})))))
 
 
-
-(let [pre-d
-      (->> (read-cols-and-rows puf-filename)
-           (transform-cols-and-rows (apply dissoc standard-column-fns
-                                           col-names-to-avoid))
-           (add-coords-to-place-dataset)
-           (add-linear-combination-column (extended-components 0) :xcomp0)
-           (add-linear-combination-column (extended-components 1) :xcomp1)
-           (add-linear-combination-column (extended-components 2) :xcomp2)
-           (add-linear-combination-column (extended-components 3) :xcomp3)
-           (remove-columns (keys (extended-components 0)))
-           cols-and-rows-to-dataset
-           filter-all-nonnil)
-      pre-d-1 (conj-cols pre-d
-                         (dataset [:mean-x :mean-y]
-                                  (map
+(comment
+  (let [pre-d
+        (->> (read-cols-and-rows puf-filename)
+             (transform-cols-and-rows (apply dissoc standard-column-fns
+                                             col-names-to-avoid))
+             (add-coords-to-place-dataset)
+             (add-linear-combination-column (extended-components 0) :xcomp0)
+             (add-linear-combination-column (extended-components 1) :xcomp1)
+             (add-linear-combination-column (extended-components 2) :xcomp2)
+             (add-linear-combination-column (extended-components 3) :xcomp3)
+             (remove-columns (keys (extended-components 0)))
+             cols-and-rows-to-dataset
+             filter-all-nonnil)
+        pre-d-1 (conj-cols pre-d
+                           (dataset [:mean-x :mean-y]
+                                    (map
                                         ; change nils with {}s
-                                   #(if % % {}) 
-                                   (map coords-map
-                                        (:rows
-                                         ($ [:cityCode
-                                             :statAreaCode]
-                                            pre-d))))))
-      pre-d-2 (conj-cols pre-d-1
-                         {:uxcomp0 (map double (uniformize ($ :xcomp0 pre-d-1)))
-                          :uxcomp1 (map double (uniformize ($ :xcomp1 pre-d-1)))
-                          :uxcomp2 (map double (uniformize ($ :xcomp2 pre-d-1)))
-                          :uxcomp3 (map double (uniformize ($ :xcomp3 pre-d-1)))})
-      measures-by-place (get-xmeasures-by-place pre-d-2)
-      measures-by-coords (filter-all-nonnil-and-nonNaN
-                          (add-coords-to-place-dataset
-                           measures-by-place))
-      measures-by-coords-with-info (add-column
-                                    :yishuv-name (map (comp from-yishuv-code-to-name
-                                                            (nil-to-val "other")
-                                                            (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
-                                                      ($ :cityCode measures-by-coords))
-                                    (add-column :desc (map place-desc
-                                                           (:rows measures-by-coords))
-                                                measures-by-coords))
-      ]
-  (save
-   ($ [:desc
-       :mean-uxcomp0-m
-       :mean-uxcomp0-s
-       :mean-uxcomp1-m
-       :mean-uxcomp1-s
-       :mean-uxcomp2-m
-       :mean-uxcomp2-s
-       :mean-uxcomp3-m
-       :mean-uxcomp3-s
+                                     #(if % % {}) 
+                                     (map coords-map
+                                          (:rows
+                                           ($ [:cityCode
+                                               :statAreaCode]
+                                              pre-d))))))
+        pre-d-2 (conj-cols pre-d-1
+                           {:uxcomp0 (map double (uniformize ($ :xcomp0 pre-d-1)))
+                            :uxcomp1 (map double (uniformize ($ :xcomp1 pre-d-1)))
+                            :uxcomp2 (map double (uniformize ($ :xcomp2 pre-d-1)))
+                            :uxcomp3 (map double (uniformize ($ :xcomp3 pre-d-1)))})
+        measures-by-place (get-xmeasures-by-place pre-d-2)
+        measures-by-coords (filter-all-nonnil-and-nonNaN
+                            (add-coords-to-place-dataset
+                             measures-by-place))
+        measures-by-coords-with-info (add-column
+                                      :yishuv-name (map (comp from-yishuv-code-to-name
+                                                              (nil-to-val "other")
+                                                              (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
+                                                        ($ :cityCode measures-by-coords))
+                                      (add-column :desc (map place-desc
+                                                             (:rows measures-by-coords))
+                                                  measures-by-coords))
+        x-axis #(* 1000 %)
+        y-axis #(- 1000 (* 1000 %))
+        relevant-rows (:rows measures-by-coords-with-info)
+        ;; (filter #(#{7600 5000 3000} (:cityCode %))
+        ;;         (:rows measures-by-coords-with-info))
+        ]
+    (plot-by-d3
+     {"h" 2000
+      "w" 1000
+      ;; "lines" [;; {"x" (x-axis 0) "y" (y-axis 0)}
+      ;;          ;; {"x" (x-axis 1) "y" (y-axis 0)}
+      ;;          ;; {"x" (x-axis 1) "y" (y-axis 1)}
+      ;;          ;; {"x" (x-axis 0) "y" (y-axis 1)}
+      ;;          ;; {"x" (x-axis 0) "y" (y-axis 0)}
+      ;;          ;; {"x" (x-axis 1) "y" (y-axis 1)}
+      ;;          ]
+      "lines" (map (fn [row]
+                     {"x1" (x-axis (- 1 (:mean-uxcomp0-s row)))
+                      "y1" (x-axis (:mean-uxcomp1-s row))
+                      "x2" (x-axis (- 1 (:mean-uxcomp0-m row)))
+                      "y2" (x-axis (:mean-uxcomp1-m row))})
+                      relevant-rows)
+      "circles" (mapcat (fn [row]
+                          (let [color (case (:cityCode row)
+                                        5000 "white"
+                                        4000 "red"
+                                        3000 "yellow"
+                                        7600 "magenta"
+                                        70 "blue"
+                                        "#666666")
+                                attr-and-style { ;; "r" 5
+                                                ;; (/ (sqrt (:n row))
+                                                ;;     2)
+                                                "fill" color
+                                                "stroke" color
+                                                "opacity" 0.5}]
+                            [(into attr-and-style {"r" 3
+                                                   "cx" (x-axis (- 1 (:mean-uxcomp0-m row)))
+                                                   "cy" (x-axis (:mean-uxcomp1-m row))
+                                                   "text" (str (:desc row) "-M")})
+                             (into attr-and-style {"r" 6
+                                                   "cx" (x-axis (- 1 (:mean-uxcomp0-s row)))
+                                                   "cy" (x-axis (:mean-uxcomp1-s row))
+                                                   "text" (str (:desc row) "-S")})]))
+                        relevant-rows)})
+    (save
+     ($ [:desc
+         :mean-uxcomp0-m
+         :mean-uxcomp0-s
+         :mean-uxcomp1-m
+         :mean-uxcomp1-s
+         :mean-uxcomp2-m
+         :mean-uxcomp2-s
+         :mean-uxcomp3-m
+         :mean-uxcomp3-s
          ;; :mean-x
          ;; :mean-y
-       ;; :n                             
-       :yishuv-name]
+         ;; :n                             
+         :yishuv-name]
         measures-by-coords-with-info)
-     "../client/my-scatter/scatter.csv"))
+     "../client/my-scatter/scatter.csv")))
 
 
 
 ;;;;;;;;;;;;;;;;
 
-- arrows
-- stability of pca wrt randomization
+;; - arrows
+;; - stability of pca wrt randomization

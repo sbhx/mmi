@@ -14,12 +14,23 @@ $.getJSON("d3data.json",
                   .x(function(d) {return d.x;})
                   .y(function(d) {return d.y;})
 
-              var lineGraph =
-                  svg.append("path")
-                  .attr("d", lineFunction(data.lines))
-                  .attr("stroke", "grey")
+              // var lineGraph =
+              //     svg.append("path")
+              //     .attr("d", lineFunction(data.lines))
+              //     .attr("stroke", "grey")
+              //     .attr("stroke-width", 2)
+              //     .attr("fill", "none");
+              
+              svg.selectAll("line")
+                  .data(data.lines)
+                  .enter()
+                  .append("line")
+                  .attr("x1", function(d) {return d.x1;})
+                  .attr("y1", function(d) {return d.y1;})
+                  .attr("x2", function(d) {return d.x2;})
+                  .attr("y2", function(d) {return d.y2;})
                   .attr("stroke-width", 2)
-                  .attr("fill", "none");
+                  .attr("stroke", "grey");
 	      
               var tooltip = svg.append("text");
 		  
