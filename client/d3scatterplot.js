@@ -29,7 +29,7 @@ $.getJSON("d3data.json",
                   .attr("y1", function(d) {return d.y1;})
                   .attr("x2", function(d) {return d.x2;})
                   .attr("y2", function(d) {return d.y2;})
-                  .attr("stroke-width", 2)
+                  .attr("stroke-width", 1)
                   .attr("stroke", "grey");
 	      
               var tooltip = svg.append("text");

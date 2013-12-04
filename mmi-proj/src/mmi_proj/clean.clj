@@ -31,7 +31,8 @@
   (:use [c2.core :only (unify)])
   (:use hiccup.core)
   (:use clojure.stacktrace)
-  (:use [clj-ml data clusterers]))
+  (:use [clj-ml data clusterers])
+  (:require [clj-liblinear.core :as liblinear]))
 
 (apply require clojure.main/repl-requires)
 
@@ -411,12 +412,24 @@ Note: same as (into [] coll), but parallel."
             (order (order values)))
        (repeat (inc (count values)))))
 
+
 (comment
   (let [x (repeatedly 9 rand)]
     (= (order x)
        (order (uniformize x)))))
 
 
+(defn adapt-range [values]
+  (let [minval (apply min values)
+        maxval (apply max values)
+        spread (- maxval minval)]
+    (map #(/ (- % minval)
+             spread)
+         values)))
+
+(comment
+  (= [0 1/9 1]
+     (adapt-range [1 2 10])))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -1367,41 +1380,42 @@ Note: same as (into [] coll), but parallel."
                   :n-change-2010-2009
                   :cityCode :statAreaCode
                   :mean-x :mean-y]
-                 (conj-cols (to-dataset
-                             {:prob-a-change (map logits-difference
-                                                  ($ :prob-a-om pre-data)
-                                                  ($ :prob-a-os pre-data))
-                              :prob-o-change (map logits-difference
-                                                  ($ :prob-o-om pre-data)
-                                                  ($ :prob-o-os pre-data))
-                              :ucomp1-change (map logits-difference
-                                                  ($ :mean-ucomp1-om pre-data)
-                                                  ($ :mean-ucomp1-os pre-data))
-                              :unifprice-change-2007-2006 (map logits-difference
-                                                               ($ :unifprice2007 pre-data)
-                                                               ($ :unifprice2006 pre-data))
-                              :unifprice-change-2008-2007 (map logits-difference
-                                                               ($ :unifprice2008 pre-data)
-                                                               ($ :unifprice2007 pre-data))
-                              :unifprice-change-2009-2008 (map logits-difference
-                                                               ($ :unifprice2009 pre-data)
-                                                               ($ :unifprice2008 pre-data))
-                              :unifprice-change-2010-2009 (map logits-difference
-                                                               ($ :unifprice2010 pre-data)
-                                                               ($ :unifprice2009 pre-data))
-                              :n-change-2007-2006 (map log-ratio
-                                                       ($ :n2007 pre-data)
-                                                       ($ :n2006 pre-data))
-                              :n-change-2008-2007 (map log-ratio
-                                                       ($ :n2008 pre-data)
-                                                       ($ :n2007 pre-data))
-                              :n-change-2009-2008 (map log-ratio
-                                                       ($ :n2009 pre-data)
-                                                       ($ :n2008 pre-data))
-                              :n-change-2010-2009 (map log-ratio
-                                                       ($ :n2010 pre-data)
-                                                       ($ :n2009 pre-data))})
-                            pre-data)))
+                 (conj-cols
+                  (to-dataset
+                   {:prob-a-change (map logits-difference
+                                        ($ :prob-a-om pre-data)
+                                        ($ :prob-a-os pre-data))
+                    :prob-o-change (map logits-difference
+                                        ($ :prob-o-om pre-data)
+                                        ($ :prob-o-os pre-data))
+                    :ucomp1-change (map logits-difference
+                                        ($ :mean-ucomp1-om pre-data)
+                                        ($ :mean-ucomp1-os pre-data))
+                    :unifprice-change-2007-2006 (map logits-difference
+                                                     ($ :unifprice2007 pre-data)
+                                                     ($ :unifprice2006 pre-data))
+                    :unifprice-change-2008-2007 (map logits-difference
+                                                     ($ :unifprice2008 pre-data)
+                                                     ($ :unifprice2007 pre-data))
+                    :unifprice-change-2009-2008 (map logits-difference
+                                                     ($ :unifprice2009 pre-data)
+                                                     ($ :unifprice2008 pre-data))
+                    :unifprice-change-2010-2009 (map logits-difference
+                                                     ($ :unifprice2010 pre-data)
+                                                     ($ :unifprice2009 pre-data))
+                    :n-change-2007-2006 (map log-ratio
+                                             ($ :n2007 pre-data)
+                                             ($ :n2006 pre-data))
+                    :n-change-2008-2007 (map log-ratio
+                                             ($ :n2008 pre-data)
+                                             ($ :n2007 pre-data))
+                    :n-change-2009-2008 (map log-ratio
+                                             ($ :n2009 pre-data)
+                                             ($ :n2008 pre-data))
+                    :n-change-2010-2009 (map log-ratio
+                                             ($ :n2010 pre-data)
+                                             ($ :n2009 pre-data))})
+                  pre-data)))
         clusterer (make-clusterer :k-means
                                   :number-clusters 3
                                   :number-iterations 10000)
@@ -1515,19 +1529,26 @@ Note: same as (into [] coll), but parallel."
 (defn get-xmeasures-by-place [subd]
   (to-dataset
    (for [[k v] ($group-by
-                [:cityCode :statAreaCode]
+                [:cityCode ;:statAreaCode
+                 ]
                 subd)]
      (let [s ($where {:KtvtLifney5ShanaMachozMchvPUF 1} v)
-           m ($where {:KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)]
+           m ($where {:KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)
+           nm ($where {:new-apt 1} m)]
        (conj k {:n (nrow v)
-                :mean-uxcomp0-s (careful-mean ($ :uxcomp0 s))
-                :mean-uxcomp1-s (careful-mean ($ :uxcomp1 s))
-                :mean-uxcomp2-s (careful-mean ($ :uxcomp2 s))
-                :mean-uxcomp3-s (careful-mean ($ :uxcomp3 s))
-                :mean-uxcomp0-m (careful-mean ($ :uxcomp0 m))
-                :mean-uxcomp1-m (careful-mean ($ :uxcomp1 m))
-                :mean-uxcomp2-m (careful-mean ($ :uxcomp2 m))
-                :mean-uxcomp3-m (careful-mean ($ :uxcomp3 m))})))))
+                :mean-axcomp0-s (careful-mean ($ :axcomp0 s))
+                :mean-axcomp1-s (careful-mean ($ :axcomp1 s))
+                :mean-axcomp2-s (careful-mean ($ :axcomp2 s))
+                :mean-axcomp3-s (careful-mean ($ :axcomp3 s))
+                :mean-axcomp0-m (careful-mean ($ :axcomp0 m))
+                :mean-axcomp1-m (careful-mean ($ :axcomp1 m))
+                :mean-axcomp2-m (careful-mean ($ :axcomp2 m))
+                :mean-axcomp3-m (careful-mean ($ :axcomp3 m))
+                ;; :mean-axcomp0-nm (careful-mean ($ :axcomp0 nm))
+                ;; :mean-axcomp1-nm (careful-mean ($ :axcomp1 nm))
+                ;; :mean-axcomp2-nm (careful-mean ($ :axcomp2 nm))
+                ;; :mean-axcomp3-nm (careful-mean ($ :axcomp3 nm))
+                })))))
 
 
 (comment
@@ -1554,7 +1575,11 @@ Note: same as (into [] coll), but parallel."
                                                :statAreaCode]
                                               pre-d))))))
         pre-d-2 (conj-cols pre-d-1
-                           {:uxcomp0 (map double (uniformize ($ :xcomp0 pre-d-1)))
+                           {:axcomp0 (map double (adapt-range ($ :xcomp0 pre-d-1)))
+                            :axcomp1 (map double (adapt-range ($ :xcomp1 pre-d-1)))
+                            :axcomp2 (map double (adapt-range ($ :xcomp2 pre-d-1)))
+                            :axcomp3 (map double (adapt-range ($ :xcomp3 pre-d-1)))
+                            :uxcomp0 (map double (uniformize ($ :xcomp0 pre-d-1)))
                             :uxcomp1 (map double (uniformize ($ :xcomp1 pre-d-1)))
                             :uxcomp2 (map double (uniformize ($ :xcomp2 pre-d-1)))
                             :uxcomp3 (map double (uniformize ($ :xcomp3 pre-d-1)))})
@@ -1572,8 +1597,9 @@ Note: same as (into [] coll), but parallel."
                                                   measures-by-coords))
         x-axis #(* 1000 %)
         y-axis #(- 1000 (* 1000 %))
-        relevant-rows (:rows measures-by-coords-with-info)
-        ;; (filter #(#{7600 5000 3000} (:cityCode %))
+        relevant-rows
+        (:rows measures-by-coords-with-info)
+        ;; (filter #(#{5000} (:cityCode %))
         ;;         (:rows measures-by-coords-with-info))
         ]
     (plot-by-d3
@@ -1586,45 +1612,49 @@ Note: same as (into [] coll), but parallel."
       ;;          ;; {"x" (x-axis 0) "y" (y-axis 0)}
       ;;          ;; {"x" (x-axis 1) "y" (y-axis 1)}
       ;;          ]
-      "lines" (map (fn [row]
-                     {"x1" (x-axis (- 1 (:mean-uxcomp0-s row)))
-                      "y1" (x-axis (:mean-uxcomp1-s row))
-                      "x2" (x-axis (- 1 (:mean-uxcomp0-m row)))
-                      "y2" (x-axis (:mean-uxcomp1-m row))})
-                      relevant-rows)
-      "circles" (mapcat (fn [row]
-                          (let [color (case (:cityCode row)
-                                        5000 "white"
-                                        4000 "red"
-                                        3000 "yellow"
-                                        7600 "magenta"
-                                        70 "blue"
-                                        "#666666")
-                                attr-and-style { ;; "r" 5
-                                                ;; (/ (sqrt (:n row))
-                                                ;;     2)
-                                                "fill" color
-                                                "stroke" color
-                                                "opacity" 0.5}]
-                            [(into attr-and-style {"r" 3
-                                                   "cx" (x-axis (- 1 (:mean-uxcomp0-m row)))
-                                                   "cy" (x-axis (:mean-uxcomp1-m row))
-                                                   "text" (str (:desc row) "-M")})
-                             (into attr-and-style {"r" 6
-                                                   "cx" (x-axis (- 1 (:mean-uxcomp0-s row)))
-                                                   "cy" (x-axis (:mean-uxcomp1-s row))
-                                                   "text" (str (:desc row) "-S")})]))
-                        relevant-rows)})
+      "lines"
+      (map
+       (fn [row]
+         {"x1" (x-axis (- 1 (:mean-axcomp0-s row)))
+          "y1" (x-axis (:mean-axcomp2-s row))
+          "x2" (x-axis (- 1 (:mean-axcomp0-m row)))
+          "y2" (x-axis (:mean-axcomp2-m row))})
+       relevant-rows)
+      "circles"
+      (mapcat
+       (fn [row]
+         (let [color (case (:cityCode row)
+                       5000 "white"
+                       4000 "red"
+                       3000 "yellow"
+                       7600 "magenta"
+                       70 "blue"
+                       "#666666")
+               attr-and-style { ;; "r" 5
+                               ;; (/ (sqrt (:n row))
+                               ;;     2)
+                               "fill" color
+                               "stroke" color
+                               "opacity" 0.5}]
+           [(into attr-and-style {"r" 1
+                                  "cx" (x-axis (- 1 (:mean-axcomp0-m row)))
+                                  "cy" (x-axis (:mean-axcomp2-m row))
+                                  "text" (str (:desc row) "-M")})
+            (into attr-and-style {"r" 3
+                                  "cx" (x-axis (- 1 (:mean-axcomp0-s row)))
+                                  "cy" (x-axis (:mean-axcomp2-s row))
+                                  "text" (str (:desc row) "-S")})]))
+       relevant-rows)})
     (save
      ($ [:desc
-         :mean-uxcomp0-m
-         :mean-uxcomp0-s
-         :mean-uxcomp1-m
-         :mean-uxcomp1-s
-         :mean-uxcomp2-m
-         :mean-uxcomp2-s
-         :mean-uxcomp3-m
-         :mean-uxcomp3-s
+         :mean-axcomp0-m
+         :mean-axcomp0-s
+         :mean-axcomp1-m
+         :mean-axcomp1-s
+         :mean-axcomp2-m
+         :mean-axcomp2-s
+         :mean-axcomp3-m
+         :mean-axcomp3-s
          ;; :mean-x
          ;; :mean-y
          ;; :n                             

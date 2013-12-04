@@ -29,7 +29,8 @@
                  [com.keminglabs/c2 "0.2.3"]
                  [hiccup "1.0.4"]
                  [cc.artifice/clj-ml "0.6.0-SNAPSHOT"]
-                 [org.clojure/tools.trace "0.7.6"]]
+                 [org.clojure/tools.trace "0.7.6"]
+                 [clj-liblinear "0.1.0"]]
   ;;:main mmi-proj.puf
   :jvm-opts ["-Xmx6g"] )
 
