@@ -252,14 +252,16 @@
                             (col-names data-for-pca)
                             ($ i (:rotation pca))))))))
 
-(defn get-pca-components []
-  (compute-and-save-or-load
-   compute-pca-components
-   (fn [_] "/home/we/workspace/data/pca/components.clj")
-   load-file
-   pr-str-to-file
-   nil
-   :components))
+(def get-pca-components
+  (memoize
+   (fn []
+     (compute-and-save-or-load
+      compute-pca-components
+      (fn [_] "/home/we/workspace/data/pca/components.clj")
+      load-file
+      pr-str-to-file
+      nil
+      :components))))
 
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -285,16 +287,19 @@
        to-dataset))
 
 
-(defn get-coords []
+(def get-coords
   ;; broken!!
-  (memoized-compute-and-save-or-load
-   compute-coords
-   (fn [_] "/home/we/workspace/data/coords.csv")
-   #(read-dataset %
-                  :header true)
-   save
-   nil
-   :coords))
+  (memoize
+   (fn []
+     (compute-and-save-or-load
+      compute-coords
+      (fn [_] "/home/we/workspace/data/coords.csv")
+      (fn [filename] (read-dataset filename
+                                  :header true))
+      (fn [filename object]
+        (save object filename))
+      nil
+      :coords))))
 
 (comment
   (sdisplay 1
@@ -356,457 +361,285 @@
        filter-all-nonnil))
 
 
-(defn get-puf-with-components [components]
-  (memoized-compute-and-save-or-load
-   compute-puf-with-components
-   (fn [_] (str "/home/we/workspace/data/puf-with-components-"
-               (hash _)
-               ".csv"))
-   (fn [filename] (read-dataset filename
-                               :header true))
-   (fn [filename object]
-     (save object filename))
-   components
-   :puf-with-components))
+(def get-puf-with-components
+  (memoize
+   (fn [components]
+     (compute-and-save-or-load
+      compute-puf-with-components
+      (fn [_] (str "/home/we/workspace/data/puf-with-components-"
+                  (hash _)
+                  ".csv"))
+      (fn [filename] (read-dataset filename
+                                  :header true))
+      (fn [filename object]
+        (save object filename))
+      components
+      :puf-with-components))))
 
 
 
-(defn get-measures-by-place
-  [dataset-with-places condition-map columns-to-average averaging-fn]
+(defn compute-measures-by-place
+  [input]
   (to-dataset
    (for [[place-map subset] ($group-by
                          [:cityCode :statAreaCode]
-                         dataset-with-places)]
-     (let [cond-rowss-map
+                         ((:dataset-with-places-fn input)))]
+     (let [cond-rows-map
            (fmap
             (fn [row-condition]
               (filter row-condition
-                      (:rows subset))))]
-       (conj place-map
-             (apply hash-map
-                    (apply concat
-                           (for [[cond-name cond-rows] cond-rowss-map
-                                 col-name columns-to-average]
-                             [(concat-keywords :mean
-                                               col-name
-                                               :given
-                                               cond-name)
-                              (apply averaging-fn
-                                     (map col-name cond-rows))]))))))))
+                      (:rows subset)))
+            (:condition-map input))]
+       (into place-map
+             (for [[cond-name cond-rows] cond-rows-map
+                   col-name (:columns-to-summarize input)
+                   [summarizing-fn-name summarizing-fn] (:summarizing-fns-map input)]
+               [(concat-keywords col-name
+                                 summarizing-fn-name
+                                 :given
+                                 cond-name)
+                (summarizing-fn
+                 (map col-name cond-rows))]))))))
 
-(comment
-  (get-measures-by-place
-   (get-puf-with-components (get-pca-components))
-   {:stayed (fn [row]
-             (= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))
-    :moved (fn [row]
-             (not= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))}
-   [:comp0 :comp1]
-   (careful-mean 15))
+(def get-measures-by-place
+  (memoize
+   (fn [input]
+     (compute-and-save-or-load
+      compute-measures-by-place
+      (fn [input] (str "/home/we/workspace/data/measures-by-place-"
+                      (hash [(keys (:condition-map input))
+                             (:columns-to-summarize input)
+                             (keys (:summarizing-fns-map input))])
+                      ".csv"))
+      (fn [filename] (read-dataset filename
+                                  :header true))
+      (fn [filename object]
+        (save object filename))
+      input
+      :measures-by-place))))
 
 
-  ;; (defn get-xmeasures-by-place [sub-puf
-  ;;                               ]
-  ;;   (to-dataset
-  ;;    (for [[k v] ($group-by
-  ;;                 [:cityCode :statAreaCode]
-  ;;                 sub-puf)]
-  ;;      (let [s ($where {:KtvtLifney5ShanaMachozMchvPUF 1} v)
-  ;;            m ($where {:KtvtLifney5ShanaMachozMchvPUF {:$ne 1}} v)
-  ;;            nm ($where {:new-apt 1} m)]
-  ;;        (conj k {:n (nrow v)
-  ;;                 :mean-axcomp0-s (careful-mean ($ :axcomp0 s))
-  ;;                 :mean-axcomp1-s (careful-mean ($ :axcomp1 s))
-  ;;                 :mean-axcomp2-s (careful-mean ($ :axcomp2 s))
-  ;;                 :mean-axcomp3-s (careful-mean ($ :axcomp3 s))
-  ;;                 :mean-axcomp0-m (careful-mean ($ :axcomp0 m))
-  ;;                 :mean-axcomp1-m (careful-mean ($ :axcomp1 m))
-  ;;                 :mean-axcomp2-m (careful-mean ($ :axcomp2 m))
-  ;;                 :mean-axcomp3-m (careful-mean ($ :axcomp3 m))
-  ;;                 ;; :mean-axcomp0-nm (careful-mean ($ :axcomp0 nm))
-  ;;                 ;; :mean-axcomp1-nm (careful-mean ($ :axcomp1 nm))
-  ;;                 ;; :mean-axcomp2-nm (careful-mean ($ :axcomp2 nm))
-  ;;                 ;; :mean-axcomp3-nm (careful-mean ($ :axcomp3 nm))
-  ;;                 })))))
+(def get-standard-measures-by-place
+  (memoize
+   (fn []
+     (get-measures-by-place
+      {:dataset-with-places-fn (fn []
+                                 (get-puf-with-components (get-pca-components)))
+       :condition-map {:stayed (fn [row]
+                                 (= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))
+                       :moved (fn [row]
+                                (not= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))}
+       :columns-to-summarize [:comp0 :comp1 :comp2 :comp3]
+       :summarizing-fns-map {:count count
+                             :mean (careful-mean 15)}}))))
 
 
 
 
-
-  ;; (defn gen-map-data [subd]
-  ;;   (let [rows (vec (filter
-  ;;                    (fn [row] (every? #(not (or (nil? %)
-  ;;                                               (Double/isNaN %))) (vals row)))
-  ;;                    (:rows
-  ;;                     (add-coords-to-place-dataset
-  ;;                      (get-measures-by-place subd)))))
-  ;;         uu (vec
-  ;;             (map (comp #(* 255/512 %) inc signum -)
-  ;;                  (map :mean-ucomp1-from-here rows)
-  ;;                  (map :mean-ucomp1-from-there rows)))
-  ;;         markers (for [i (range (count rows))]
-  ;;                   (let [uui (uu i)
-  ;;                         row (rows i)]
-  ;;                     {:lon (:mean-x row)
-  ;;                      :lat (:mean-y row)
-  ;;                      :label (place-desc row)
-  ;;                      :color (probability-to-color uui)}))
-  ;;         center {:lat (mean (filter identity (map :lat markers)))
-  ;;                 :lon (mean (filter identity (map :lon markers)))}
-  ;;         zoom 11]
-  ;;     {:center center
-  ;;      :zoom zoom
-  ;;      :markers markers}))
-
-
-  ;; (comment
-  ;;   (spit "../client/data.json"
-  ;;         (json/write-str
-  ;;          (gen-map-data
-  ;;           (get-d)
-  ;;           ;; ($where {:cityCode 5000}
-  ;;           ;;         (get-d))
-  ;;           ;; ($where {:statAreaCode {:$ne nil}}
-  ;;           ;;                  (get-d))
-  ;;           ))))
-
-
-  ;; (comment
-  ;;   ;; google static map
-  ;;   (let [center [32 34.9]
-  ;;         n 40
-  ;;         url (apply str (concat
-  ;;                         ["http://maps.googleapis.com/maps/api/staticmap?"
-  ;;                          (str "center="
-  ;;                               (first center)
-  ;;                               ","
-  ;;                               (second center)
-  ;;                               "&")
-  ;;                          "zoom=13&"
-  ;;                          "size=900x900&"
-  ;;                          "maptype=roadmap&"
-  ;;                          "markers="]
-  ;;                         (apply str "color:0xFF00FF|"
-  ;;                                (for [i (range n)]
-  ;;                                  (str 
-  ;;                                   (format "%06X" (+ i
-  ;;                                                     (* 256 256 (- 256 i))))
-  ;;                                   "|"
-  ;;                                   (format "%.2f" (+ (- (first center) 0.05)
-  ;;                                                     (/ (rand) 10)))
-  ;;                                   ","
-  ;;                                   (format "%.2f" (+ (- (second center) 0.05)
-  ;;                                                     (/ (rand) 10)))
-  ;;                                   "|")
-  ;;                                  ))
-  ;;                         "&markers="
-  ;;                         (apply str "color:0x00FF00|"
-  ;;                                (for [i (range n)]
-  ;;                                  (str 
-  ;;                                   (format "%06X" (+ i
-  ;;                                                     (* 256 256 (- 256 i))))
-  ;;                                   "|"
-  ;;                                   (format "%.2f" (+ (- (first center) 0.05)
-  ;;                                                     (/ (rand) 10)))
-  ;;                                   ","
-  ;;                                   (format "%.2f" (+ (- (second center) 0.05)
-  ;;                                                     (/ (rand) 10)))
-  ;;                                   "|")
-  ;;                                  ))
-  ;;                         ["&"
-  ;;                          "sensor=false&"
-  ;;                          "language=iw"]))
-  ;;         ]
-  ;;     (println url)
-  ;;     (sh "firefox" url)))
+(def get-standard-measures-by-coords
+  (memoize
+   (fn []
+     (add-coords-to-place-dataset
+      (get-standard-measures-by-place)))))
 
 
 
-  ;; (defn plot-by-d3 [d3data]
-  ;;   (spit "../client/d3data.json"
-  ;;         (json/write-str d3data)))
+(defn plot-by-d3 [d3data]
+  (spit "../client/d3data.json"
+        (json/write-str d3data)))
 
 
 
-
-  ;; (comment
-  ;;   (let [data (filter-all-nonnil-and-nonNaN
-  ;;               ($ [:prob-m :prob-n
-  ;;                   :mean-ucomp1-os :mean-ucomp1-om
-  ;;                   :n :cityCode]
-  ;;                  (add-coords-to-place-dataset
-  ;;                   (get-measures-by-place (get-d)))))        
-  ;;         x-axis #(* 1000 %)
-  ;;         y-axis #(- 1000 (* 1000 %))]
-  ;;     (plot-by-d3
-  ;;      {"h" 2000
-  ;;       "w" 1000
-  ;;       "lines" [{"x" (x-axis 0) "y" (y-axis 0)}
-  ;;                {"x" (x-axis 1) "y" (y-axis 0)}
-  ;;                {"x" (x-axis 1) "y" (y-axis 1)}
-  ;;                {"x" (x-axis 0) "y" (y-axis 1)}
-  ;;                {"x" (x-axis 0) "y" (y-axis 0)}
-  ;;                {"x" (x-axis 1) "y" (y-axis 1)}]
-  ;;       "circles" (map (fn [row]
-  ;;                        (let [color (case (:cityCode row)
-  ;;                                      5000 "white"
-  ;;                                      4000 "red"
-  ;;                                      3000 "yellow"
-  ;;                                      70 "blue"
-  ;;                                      "#666666")]
-  ;;                          {"cx" (x-axis (:prob-m row))
-  ;;                           "cy" (y-axis (-
-  ;;                                         (:mean-ucomp1-om row)
-  ;;                                         (:mean-ucomp1-os row)))
-  ;;                           "r" 5
-  ;;                           ;; (/ (sqrt (:n row))
-  ;;                           ;;     2)
-  ;;                           "fill" color
-  ;;                           "stroke" color
-  ;;                           "opacity" 0.5
-  ;;                           "text" (place-desc row)}))
-  ;;                      (:rows data))})))
-
-
-  ;; (comment
-  ;;   (let [data (filter-all-nonnil-and-nonNaN
-  ;;               ($ [:prob-m :prob-n
-  ;;                   :prob-o-os :prob-o-om
-  ;;                   :prob-a-os :prob-a-om
-  ;;                   :mean-ucomp1-os :mean-ucomp1-om
-  ;;                   :n :cityCode :statAreaCode]
-  ;;                  (add-coords-to-place-dataset
-  ;;                   (get-measures-by-place (get-d)))))]
-  ;;     (save
-  ;;      ($ [:prob-m :prob-n
-  ;;          :prob-o-os :prob-o-om
-  ;;          :prob-a-os :prob-a-om
-  ;;          :mean-ucomp1-os :mean-ucomp1-om
-  ;;          :yishuv-name :desc]
-  ;;         (add-column :desc
-  ;;                     (map place-desc
-  ;;                          (:rows data))
-  ;;                     (add-column :yishuv-name
-  ;;                                 (map (comp from-yishuv-code-to-name
-  ;;                                            (nil-to-val "other")
-  ;;                                            (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
-  ;;                                      ($ :cityCode data))
-  ;;                                 data)))
-  ;;      "../client/my-scatter/scatter.csv")))
-
-
-  ;; ;;;;;;;;;;;
-
-
-
-  ;; (defn get-sales-summary-by-place-map
-  ;;   [years]
-  ;;   (let [;;;;
-  ;;         summary-by-place-by-year
-  ;;         (->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
-  ;;                                  :delimiter "\t")
-  ;;              (transform-cols-and-rows {:cityCode (comp parse-int-or-nil
-  ;;                                                        :cityCode)
-  ;;                                        :statAreaCode (comp parse-int-or-nil
-  ;;                                                            ;; nil happens,
-  ;;                                                            ;; for example,
-  ;;                                                            ;; when "null"
-  ;;                                                            ;; appears in data.
-  ;;                                                            :statAreaCode)
-  ;;                                        :pricePerMeter (comp parse-int-or-nil
-  ;;                                                             :priceByMeter)
-  ;;                                        :year #(parse-int-or-nil
-  ;;                                                (first (clojure.string/split (:saleDay %) #"-")))})
-  ;;              (filter-cols-and-rows #((into #{} years)
-  ;;                                      (:year %)))
-  ;;              cols-and-rows-to-dataset
-  ;;              ($group-by [:year])
-  ;;              (map (fn [year-and-data]
-  ;;                     [(first year-and-data)
-  ;;                      (->> year-and-data
-  ;;                           second
-  ;;                           ($group-by [:cityCode :statAreaCode])
-  ;;                           (map (fn [place-and-data]
-  ;;                                  [(first place-and-data)
-  ;;                                   {:medppm (median
-  ;;                                             (to-seq ($ :pricePerMeter
-  ;;                                                        (second place-and-data))))
-  ;;                                    :n (nrow (second place-and-data))}]))
-  ;;                           (apply concat)
-  ;;                           (apply hash-map))]))
-  ;;              (apply concat)
-  ;;              (apply hash-map))
-  ;;         ;;;;
-  ;;         unifprice-by-place-by-year
-  ;;         (fmap (fn [summary-by-place]
-  ;;                 (apply hash-map
-  ;;                        (apply concat
-  ;;                               (map vector
-  ;;                                    (keys summary-by-place)
-  ;;                                    (map double (uniformize (map :medppm
-  ;;                                                                 (vals summary-by-place))))))))
-  ;;               summary-by-place-by-year)
-  ;;         ;;;;
-  ;;         places
-  ;;         (distinct (apply concat
-  ;;                          (map (fn [year-and-unifprice-by-place]
-  ;;                                 (map first (second year-and-unifprice-by-place)))
-  ;;                               unifprice-by-place-by-year)))
-  ;;         ;;;;
-  ;;         summary-by-place
-  ;;         (apply hash-map
-  ;;                (apply concat
-  ;;                       (for [place places]
-  ;;                         [place (into {}
-  ;;                                      (for [year years]
-  ;;                                        {(keyword (str "unifprice" year))
-  ;;                                         (get-in unifprice-by-place-by-year
-  ;;                                                 [{:year year} place])
-  ;;                                         (keyword (str "n" year))
-  ;;                                         (get-in summary-by-place-by-year
-  ;;                                                 [{:year year} place :n])}))])))
-  ;;         ]
-  ;;     summary-by-place))
+(defn compute-sales-summary-by-place-map
+  [years]
+  (let [;;;;
+        summary-by-place-by-year
+        (->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
+                                 :delimiter "\t")
+             (transform-cols-and-rows {:cityCode (comp parse-int-or-nil
+                                                       :cityCode)
+                                       :statAreaCode (comp parse-int-or-nil
+                                                           ;; nil happens,
+                                                           ;; for example,
+                                                           ;; when "null"
+                                                           ;; appears in data.
+                                                           :statAreaCode)
+                                       :pricePerMeter (comp parse-int-or-nil
+                                                            :priceByMeter)
+                                       :year #(parse-int-or-nil
+                                               (first (clojure.string/split (:saleDay %) #"-")))})
+             (filter-cols-and-rows #((into #{} years)
+                                     (:year %)))
+             cols-and-rows-to-dataset
+             ($group-by [:year])
+             (map (fn [year-and-data]
+                    [(first year-and-data)
+                     (->> year-and-data
+                          second
+                          ($group-by [:cityCode :statAreaCode])
+                          (map (fn [place-and-data]
+                                 [(first place-and-data)
+                                  {:medppm (median
+                                            (to-seq ($ :pricePerMeter
+                                                       (second place-and-data))))
+                                   :n (nrow (second place-and-data))}]))
+                          (apply concat)
+                          (apply hash-map))]))
+             (apply concat)
+             (apply hash-map))
+          ;;;;
+        unifprice-by-place-by-year
+        (fmap (fn [summary-by-place]
+                (apply hash-map
+                       (apply concat
+                              (map vector
+                                   (keys summary-by-place)
+                                   (map double (uniformize (map :medppm
+                                                                (vals summary-by-place))))))))
+              summary-by-place-by-year)
+          ;;;;
+        places
+        (distinct (apply concat
+                         (map (fn [year-and-unifprice-by-place]
+                                (map first (second year-and-unifprice-by-place)))
+                              unifprice-by-place-by-year)))
+          ;;;;
+        summary-by-place
+        (apply hash-map
+               (apply concat
+                      (for [place places]
+                        [place (into {}
+                                     (for [year years]
+                                       {(keyword (str "unifprice" year))
+                                        (get-in unifprice-by-place-by-year
+                                                [{:year year} place])
+                                        (keyword (str "n" year))
+                                        (get-in summary-by-place-by-year
+                                                [{:year year} place :n])}))])))
+        ]
+    summary-by-place))
 
 
+(defn compute-sales-summary-by-place [years]
+  (to-dataset (map #(apply conj %)
+                   (compute-sales-summary-by-place-map years))))
 
 
-  ;; ;; (pprint (frequencies (apply concat
-  ;; ;;                                       (map #(map second (second %))
-  ;; ;;                                            (get-ppm-summary)))))
+(def get-sales-summary-by-place
+  (memoize
+   (fn [years]
+     (compute-and-save-or-load
+      compute-sales-summary-by-place
+      (fn [_] (str
+              (concat-with-delimiter
+               "-"
+               (cons
+                "/home/we/workspace/data/sales-summary-by-place"
+                years))
+              ".csv"))
+      (fn [filename] (read-dataset filename
+                                  :header true))
+      (fn [filename object]
+        (save object filename))
+      years
+      :sales-summary-by-place))))
 
-  ;; ;; (let [ppm-summary ]
-  ;; ;;   (println (map (juxt first
-  ;; ;;                       (comp count second)) ppm-summary))
-  ;; ;;   ppm-summary)
+
+(defn compute-sales-summary-by-coords [years]
+  (add-coords-to-place-dataset
+(compute-sales-summary-by-place years)))
+
+
+(def get-sales-summary-by-coords
+  (memoize
+   (fn [years]
+     (compute-and-save-or-load
+      compute-sales-summary-by-coords
+      (fn [_] (str
+              (concat-with-delimiter
+               "-"
+               (cons
+                "/home/we/workspace/data/pca/sales-summary-by-coords"
+                years))
+              ".csv"))
+      (fn [filename] (read-dataset filename
+                                  :header true))
+      (fn [filename object]
+        (save object filename))
+      years
+      :sales-summary-by-coords))))
+
+
+(defn compute-join-by-coords []
+  (let [measures-by-place (get-standard-measures-by-place)
+        summary-by-place (get-sales-summary-by-place (range 2006 2011))
+        join-by-place ($join [[:cityCode :statAreaCode]
+                              [:cityCode :statAreaCode]]
+                             summary-by-place
+                             measures-by-place)
+        join-by-coords (sort-colnames
+                        (add-coords-to-place-dataset join-by-place))]
+    join-by-coords))
+
+
+(def get-join-by-coords
+  (memoize
+   (fn []
+     (compute-and-save-or-load
+      (fn [_] (compute-join-by-coords))
+      (fn [_] "/home/we/workspace/data/pca/join-by-coords.csv")
+      (fn [filename] (read-dataset filename
+                                  :header true))
+      (fn [filename object]
+        (save object filename))
+      nil
+      :join-by-coords))))
+
+
+  ;; (let [summaries-by-coords (sort-colnames
+  ;;                            (filter-all-nonnil-and-nonNaN
+  ;;                             (get-sales-summary-by-coords (range 2006 2011))))
+  ;;       margin 80
+  ;;       scale 1000
+  ;;       x-axis #(+ margin (* scale %))
+  ;;       y-axis #(+ margin (- scale (* scale %)))
+  ;;       n-columns (filter #(re-matches #"n.*" (name %))
+  ;;                         (col-names summaries-by-coords))]
+  ;;   (plot-by-d3
+  ;;    {"h" (+ scale margin margin)
+  ;;     "w" (+ scale margin margin margin)
+  ;;     "lines" [{"x" (x-axis 0) "y" (y-axis 0)}
+  ;;              {"x" (x-axis 1) "y" (y-axis 0)}
+  ;;              {"x" (x-axis 1) "y" (y-axis 1)}
+  ;;              {"x" (x-axis 0) "y" (y-axis 1)}
+  ;;              {"x" (x-axis 0) "y" (y-axis 0)}
+  ;;              {"x" (x-axis 1) "y" (y-axis 1)}]
+  ;;     "circles" (map (fn [row]
+  ;;                      (let [color (case (:cityCode row)
+  ;;                                    5000 "white"
+  ;;                                    4000 "red"
+  ;;                                    3000 "yellow"
+  ;;                                    6400 "magenta"
+  ;;                                    7000 "blue"
+  ;;                                    3797 "#44ee99"
+  ;;                                    "#777777")]
+  ;;                        {"cx" (x-axis (log (/ (:unifprice2008 row) (:unifprice2006 row))))
+  ;;                         "cy" (y-axis (log (/ (:unifprice2010 row) (:unifprice2006 row))))
+  ;;                         "r" (/ (sqrt (:n2006 row))
+  ;;                                5)
+  ;;                         "fill" color
+  ;;                         "stroke" color
+  ;;                         "opacity" 0.5
+  ;;                         "text" (place-desc row)}))
+  ;;                    (filter (fn [row]
+  ;;                              (< 10
+  ;;                                 (apply min (map row n-columns))))
+  ;;                            (:rows summaries-by-coords)))}))
 
 
 
 
 
-
-  ;; ;; (defn unified-data-by-place []
-
-
-  ;; ;;   )
-
-
-
-  ;; (comment
-  ;;   (def x
-  ;;     (set
-  ;;      (keys
-  ;;       (get-sales-summary-by-place-map))))
-  ;;   (def y
-  ;;     (set
-  ;;      (distinct (:rows ($ [:cityCode :statAreaCode] (get-d))))))
-  ;;   (distinct
-  ;;    (map identity; (comp from-yishuv-code-to-name :cityCode)
-  ;;         (clojure.set/difference x y)))
-  ;;   (distinct
-  ;;    (map identity; (comp from-yishuv-code-to-name :cityCode)
-  ;;         (clojure.set/difference y x))))
-
-
-  ;; (comment
-  ;;   ($join [[:a] [:a]]
-  ;;          (dataset [:a :b]
-  ;;                   [[1 11]
-  ;;                    [2 12]
-  ;;                    [3 13]])
-  ;;          (dataset [:a :c]
-  ;;                   [[1 21]
-  ;;                    [2 22]
-  ;;                    [4 24]])))
-
-  ;; (def get-sales-summary-by-place
-  ;;   (memoize (fn [years]
-  ;;              (to-dataset (map #(apply conj %)
-  ;;                               (get-sales-summary-by-place-map years))))))
-
-  ;; (def get-sales-summary-by-coords
-  ;;   (memoize (fn [years]
-  ;;              (add-coords-to-place-dataset
-  ;;               (get-sales-summary-by-place)))))
-
-  ;; (defn sort-colnames [adataset]
-  ;;   (dataset (sort (col-names adataset))
-  ;;            (:rows adataset)))
-
-
-  ;; (comment
-  ;;   (let [summaries-by-coords (sort-colnames
-  ;;                              (filter-all-nonnil-and-nonNaN
-  ;;                               (get-sales-summary-by-coords (range 2006 2011))))
-  ;;         margin 80
-  ;;         scale 1000
-  ;;         x-axis #(+ margin (* scale %))
-  ;;         y-axis #(+ margin (- scale (* scale %)))
-  ;;         n-columns (filter #(re-matches #"n.*" (name %))
-  ;;                           (col-names summaries-by-coords))]
-  ;;     (plot-by-d3
-  ;;      {"h" (+ scale margin margin)
-  ;;       "w" (+ scale margin margin margin)
-  ;;       "lines" [{"x" (x-axis 0) "y" (y-axis 0)}
-  ;;                {"x" (x-axis 1) "y" (y-axis 0)}
-  ;;                {"x" (x-axis 1) "y" (y-axis 1)}
-  ;;                {"x" (x-axis 0) "y" (y-axis 1)}
-  ;;                {"x" (x-axis 0) "y" (y-axis 0)}
-  ;;                {"x" (x-axis 1) "y" (y-axis 1)}]
-  ;;       "circles" (map (fn [row]
-  ;;                        (let [color (case (:cityCode row)
-  ;;                                      5000 "white"
-  ;;                                      4000 "red"
-  ;;                                      3000 "yellow"
-  ;;                                      6400 "magenta"
-  ;;                                      7000 "blue"
-  ;;                                      3797 "#44ee99"
-  ;;                                      "#777777")]
-  ;;                          {"cx" (x-axis (log (/ (:unifprice2008 row) (:unifprice2006 row))))
-  ;;                           "cy" (y-axis (log (/ (:unifprice2010 row) (:unifprice2006 row))))
-  ;;                           "r" (/ (sqrt (:n2006 row))
-  ;;                                  5)
-  ;;                           "fill" color
-  ;;                           "stroke" color
-  ;;                           "opacity" 0.5
-  ;;                           "text" (place-desc row)}))
-  ;;                      (filter (fn [row]
-  ;;                                (< 10
-  ;;                                   (apply min (map row n-columns))))
-  ;;                              (:rows summaries-by-coords)))})))
-
-
-
-  ;; ;;;;;;;;;;;;;;;;;;;;;
-
-  ;; (def get-join-by-coords
-  ;;   (memoize (fn []
-  ;;              (let [measures-by-place (get-measures-by-place (get-d))
-  ;;                    summary-by-place (get-sales-summary-by-place (range 2006 2011))
-  ;;                    join-by-place ($join [[:cityCode :statAreaCode]
-  ;;                                          [:cityCode :statAreaCode]]
-  ;;                                         summary-by-place
-  ;;                                         measures-by-place)
-  ;;                    join-by-coords (sort-colnames
-  ;;                                    (add-coords-to-place-dataset join-by-place))]
-  ;;                join-by-coords))))
-
-
-  ;; (defn careful-log-ratio
-  ;;   [x y]
-  ;;   (if (>= 0 (min x y))
-  ;;     Double/NaN
-  ;;     (log-ratio x y)))
-
-  ;; (defn logit
-  ;;   [x]
-  ;;   (- (log x)
-  ;;      (log (- 1 x))))
-
-  ;; (defn logits-difference
-  ;;   [x y]
-  ;;   (- (logit x)
-  ;;      (logit y)))
 
   ;; (comment
   ;;   (let [data (filter-all-nonnil-and-nonNaN
@@ -1309,4 +1142,3 @@
 
   ;; ;; - arrows
   ;; ;; - stability of pca wrt randomization
-  )
