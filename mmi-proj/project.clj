@@ -30,7 +30,11 @@
                  [hiccup "1.0.4"]
                  [cc.artifice/clj-ml "0.6.0-SNAPSHOT"]
                  [org.clojure/tools.trace "0.7.6"]
-                 [clj-liblinear "0.1.0"]]
+                 [clj-liblinear "0.1.0"]
+                 ;; (using checkouts dir instead) [daslu/clj-utils
+;; "0.1.0-SNAPSHOT"]
+                 [org.clojure/data.generators "0.1.2"]
+                 ]
   ;;:main mmi-proj.puf
   :jvm-opts ["-Xmx6g"] )
 

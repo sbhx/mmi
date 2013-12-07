@@ -1,8 +1,10 @@
 (comment
-  (defn reload []
-    (do
-      (require 'mmi-proj.clean20131204 :reload-all)
-      (in-ns 'mmi-proj.clean20131204))))
+  (do
+    (defn reload []
+      (do
+        (require 'mmi-proj.clean20131204 :reload-all)
+        (in-ns 'mmi-proj.clean20131204)))
+    (reload)))
 
 (ns mmi-proj.clean20131204
   (:import java.lang.Math)
@@ -37,7 +39,8 @@
   (:use hiccup.core)
   (:use clojure.stacktrace)
   (:use [clj-ml data clusterers])
-  (:require [clj-liblinear.core :as liblinear]))
+  (:require [clj-liblinear.core :as liblinear])
+  (:require [clojure.data.generators :as gen]))
 
 (apply require clojure.main/repl-requires)
 
@@ -559,7 +562,7 @@
               (concat-with-delimiter
                "-"
                (cons
-                "/home/we/workspace/data/pca/sales-summary-by-coords"
+                "/home/we/workspace/data/sales-summary-by-coords"
                 years))
               ".csv"))
       (fn [filename] (read-dataset filename
@@ -587,7 +590,7 @@
    (fn []
      (compute-and-save-or-load
       (fn [_] (compute-join-by-coords))
-      (fn [_] "/home/we/workspace/data/pca/join-by-coords.csv")
+      (fn [_] "/home/we/workspace/data/join-by-coords.csv")
       (fn [filename] (read-dataset filename
                                   :header true))
       (fn [filename object]
@@ -596,105 +599,130 @@
       :join-by-coords))))
 
 
-  ;; (let [summaries-by-coords (sort-colnames
-  ;;                            (filter-all-nonnil-and-nonNaN
-  ;;                             (get-sales-summary-by-coords (range 2006 2011))))
-  ;;       margin 80
-  ;;       scale 1000
-  ;;       x-axis #(+ margin (* scale %))
-  ;;       y-axis #(+ margin (- scale (* scale %)))
-  ;;       n-columns (filter #(re-matches #"n.*" (name %))
-  ;;                         (col-names summaries-by-coords))]
-  ;;   (plot-by-d3
-  ;;    {"h" (+ scale margin margin)
-  ;;     "w" (+ scale margin margin margin)
-  ;;     "lines" [{"x" (x-axis 0) "y" (y-axis 0)}
-  ;;              {"x" (x-axis 1) "y" (y-axis 0)}
-  ;;              {"x" (x-axis 1) "y" (y-axis 1)}
-  ;;              {"x" (x-axis 0) "y" (y-axis 1)}
-  ;;              {"x" (x-axis 0) "y" (y-axis 0)}
-  ;;              {"x" (x-axis 1) "y" (y-axis 1)}]
-  ;;     "circles" (map (fn [row]
-  ;;                      (let [color (case (:cityCode row)
-  ;;                                    5000 "white"
-  ;;                                    4000 "red"
-  ;;                                    3000 "yellow"
-  ;;                                    6400 "magenta"
-  ;;                                    7000 "blue"
-  ;;                                    3797 "#44ee99"
-  ;;                                    "#777777")]
-  ;;                        {"cx" (x-axis (log (/ (:unifprice2008 row) (:unifprice2006 row))))
-  ;;                         "cy" (y-axis (log (/ (:unifprice2010 row) (:unifprice2006 row))))
-  ;;                         "r" (/ (sqrt (:n2006 row))
-  ;;                                5)
-  ;;                         "fill" color
-  ;;                         "stroke" color
-  ;;                         "opacity" 0.5
-  ;;                         "text" (place-desc row)}))
-  ;;                    (filter (fn [row]
-  ;;                              (< 10
-  ;;                                 (apply min (map row n-columns))))
-  ;;                            (:rows summaries-by-coords)))}))
+
+(defn compute-sample
+  [input]
+  (let [n-elements-to-sample (sum (vals (:group-size-by-name input)))
+        _ (assert (<= n-elements-to-sample
+                      (count (:coll input)))
+                  "enough elements to sample")
+        samples (vec
+                 (binding [gen/*rnd* (java.util.Random. ((nil-to-val 1)
+                                                         (:seed input)))]
+                   (take n-elements-to-sample ; TODO: Is there a more
+                                        ; efficient way?
+                         (gen/shuffle (:coll input)))))
+        sizes-cumsum (cumulative-sum (vals (:group-size-by-name input)))
+        samples-by-name (zipmap
+                         (keys (:group-size-by-name input))
+                         (map (comp vec
+                                    #(map samples %)
+                                       range)
+                                 (cons 0 sizes-cumsum)
+                                 sizes-cumsum))]
+    samples-by-name))
+
+
+(comment
+  (compute-sample
+   {:group-size-by-name {:a 5 :b 3}
+    :coll (range 99)
+    :seed 1}))
+
+
+(defn train-liblinear-model
+  [input]
+  (let [adataset ((:dataset-fn input))
+        samples-by-name (compute-sample {:coll (range (nrow adataset))
+                                         :group-size-by-name {:training (:training-size input)
+                                                              :evaluation (- (nrow adataset)
+                                                                          (:training-size input))}})]
+    (println {:sample-sizes
+              (fmap count samples-by-name)})
+    (liblinear/train (:rows
+                      ($ (:training samples-by-name) (:feature-columns input) adataset))
+                     ($ (:training samples-by-name) (:response-column input) adataset)
+                      :algorithm (:liblinear-algorithm input)                                                               
+                      :c (:liblinear-c input))))
+
+
+
+
+(defn predict-by-linear-model
+  [input]
+  (let [adataset ((:dataset-fn input))
+        samples-by-name (compute-sample {:coll (range (nrow adataset))
+                                         :group-size-by-name {:training (:training-size input)
+                                                              :evaluation (- (nrow adataset)
+                                                                             (:training-size input))}})
+        model ((:model-fn input))]
+    (fmap
+     (fn [set-name]
+       (to-dataset {:prediction (map #(liblinear/predict model %)
+                                     (:rows
+                                      ($ (set-name samples-by-name) (:feature-columns input) adataset)))
+                    :response ($ (set-name samples-by-name) (:response-column input) adataset) }))
+     (identity-map (keys samples-by-name)))))
+
+
+(defn get-liblinear-model-coeff-map [model]                                                                                                 
+  (let [w (-> model :liblinear-model (#(.getFeatureWeights %)) vec)]                                                                        
+    (apply hash-map                                                                                                                         
+           (apply concat                                                                                                                    
+                  (filter                                                                                                                   
+                   (comp not zero? second)                                                                                                  
+                   (fmap (comp w dec)                                                                                                       
+                         (:dimensions model)))))))                                                                                          
+
+;; (defn get-liblinear-model-labels [model]                                                                                                    
+;;   (vec (.getLabels (:liblinear-model model))))                                                                                              
+                                                                         
+
+(comment
+  (let [input {:dataset-fn (comp filter-all-nonnil-and-nonNaN
+                                 get-join-by-coords)
+               :training-size 500
+               :feature-columns [:comp0-mean-given-stayed
+                                 :comp1-mean-given-stayed
+                                 :comp2-mean-given-stayed
+                                 :comp3-mean-given-stayed]
+               :response-column :unifprice2006
+               :liblinear-algorithm :l1l2_primal
+               :liblinear-c 0.1}
+        model (train-liblinear-model input)
+        _ (println (get-liblinear-model-coeff-map model))
+        input (into input
+                    {:model-fn (fn [] model)})
+        predictions (predict-by-linear-model input)]
+    predictions))
 
 
 
 
 
 
-  ;; (comment
-  ;;   (let [data (filter-all-nonnil-and-nonNaN
-  ;;               ($ [:cityCode :statAreaCode
-  ;;                   :mean-ucomp1-os :mean-ucomp1-om
-  ;;                   :prob-a-os :prob-a-om
-  ;;                   :prob-o-os :prob-o-om
-  ;;                   :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
-  ;;                   :mean-x :mean-y
-  ;;                   :n2006 :n2007 :n2008 :n2009 :n2010
-  ;;                   ]
-  ;;                  (get-join-by-coords)))]
-  ;;     (save
-  ;;      (filter-all-nonnil-and-nonNaN
-  ;;       (sort-colnames
-  ;;        ($ [:prob-a-change
-  ;;            :prob-o-change
-  ;;            :ucomp1-change
-  ;;            :unifprice-change-2010-2006
-  ;;            :unifprice2006
-  ;;            :desc
-  ;;            :yishuv-name
-  ;;            ]
-  ;;           (add-column
-  ;;            :prob-o-change
-  ;;            (map logits-difference
-  ;;                 ($ :prob-o-om data)
-  ;;                 ($ :prob-o-os data))
-  ;;            (add-column
-  ;;             :prob-a-change
-  ;;             (map logits-difference
-  ;;                  ($ :prob-a-om data)
-  ;;                  ($ :prob-a-os data))
-  ;;             (add-column
-  ;;              :ucomp1-change
-  ;;              (map logits-difference
-  ;;                   ($ :mean-ucomp1-om data)
-  ;;                   ($ :mean-ucomp1-os data))
-  ;;              (add-column
-  ;;               :unifprice-change-2010-2006
-  ;;               (map logits-difference
-  ;;                    ($ :unifprice2010 data)
-  ;;                    ($ :unifprice2006 data))
-  ;;               (add-column :desc
-  ;;                           (map place-desc
-  ;;                                (:rows data))
-  ;;                           (add-column :yishuv-name
-  ;;                                       (map (comp from-yishuv-code-to-name
-  ;;                                                  (nil-to-val "other")
-  ;;                                                  (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800 9000 7600 7900}))
-  ;;                                            ($ :cityCode data))
-  ;;                                       data)))))))))
-  ;;      "../client/my-scatter/scatter.csv")))
 
 
+
+;; (def get-liblinear-model
+;;   (memoize
+;;    (fn [input]
+;;      (compute-and-save-or-load
+;;       train-liblinear-model
+;;       (fn [_] (str
+;;               (concat-with-delimiter
+;;                "-"
+;;                (concat
+;;                 ["/home/we/workspace/data/liblinear-model"]
+;;                 [(:response-column input)]
+;;                 (:feature-columns input)
+;;                 (apply concat (:liblinear-params input))))
+;;               ".csv")))
+;;      (fn [filename] (liblinear/load-model filename))
+;;       (fn [filename object]
+;;         (liblinear/save-model object filename))
+;;       input
+;;       :liblinear-model)))
 
 
   ;; (defn general-gen-map-data
