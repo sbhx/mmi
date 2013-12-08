@@ -148,10 +148,13 @@
                (#(pprint {col-name %})))))
 
 
+(def regular-int-or-nil (comp (threshold-to-nil 90)
+                              parse-int-or-nil))
+
+
 (def standard-column-fns
   (conj (identity-map [:EretzLeidaZkPUF
                        :YabeshetMotzaByAvMchlkMchvPUF
-                       :OleShnot90MchvPUF
                        :RovaKtvtMegurimPUF
                        :TatRovaKtvtMegurimPUF
                        :SmlAnafKalkaliPUF ;; TODO: transform this
@@ -159,7 +162,28 @@
                        :TkufatSiyumBniyatDiraMchvPUF
                        ]
                       )
-        {:KtvtLifney5ShanaMachozMchvPUF (comp parse-int-or-nil :KtvtLifney5ShanaMachozMchvPUF)
+        {:Muslim (comp (specific-val-to-1-others-to-0 2)
+                       parse-int-or-nil
+                       :DatZkPUF)
+         :Jewish (comp (specific-val-to-1-others-to-0 1)
+                       parse-int-or-nil
+                       :DatZkPUF)
+         :Christian (comp (specific-val-to-1-others-to-0 3)
+                       parse-int-or-nil
+                       :DatZkPUF)
+         :Druze (comp (specific-val-to-1-others-to-0 5)
+                       parse-int-or-nil
+                       :DatZkPUF)
+         :aliyah (comp (specific-val-to-1-others-to-0 1)
+                       parse-int-or-nil
+                       :OleShnot90MchvPUF)
+         :mizrach (comp (specific-vals-to-1-others-to-0 #{1 2})
+                         parse-int-or-nil
+                         :YabeshetMotzaByAvMchlkMchvPUF)
+         :ashkenaz (comp (specific-vals-to-1-others-to-0 #{3 5})
+                         parse-int-or-nil
+                         :YabeshetMotzaByAvMchlkMchvPUF)
+         :KtvtLifney5ShanaMachozMchvPUF (comp parse-int-or-nil :KtvtLifney5ShanaMachozMchvPUF)
          :KtvtLifney5ShanaMetropolinPUF (comp parse-int-or-nil :KtvtLifney5ShanaMetropolinPUF)
          :cityCode (comp parse-int-or-nil :SmlYishuvPUF)
          :statAreaCode (comp parse-int-or-nil :SmlEzorStatistiKtvtMegurimPUF)
@@ -201,7 +225,7 @@
          ;; Note redundancy of information with
          ;; the column :TkufatSiyumBniyatDiraMchvPUF
          :TzfifutDiurPUF-reg (comp regular-int-or-nil
-                                   :TzfifutDiurPUF)
+                                   :TzfifutDiurPUF) 
          :apt-owned-by-family (comp (specific-vals-to-1-others-to-0 #{"1" "4"})
                                     :TzuratAchzakatDira2008MchvPUF)}))
 
@@ -234,10 +258,11 @@
 (def col-names-to-avoid [:Hchns2008BrutoSachirPUF-int
                          :MspSherutimPUF-reg
                          :MspChadarimPUF-reg
-                         :TzfifutDiurPUF-reg
-                         :NefashotMeshekBayitPUF-reg
+                         ;; :TzfifutDiurPUF-reg
+                         ;; :NefashotMeshekBayitPUF-reg
                          :SmlAnafKalkaliPUF
-                         :SmlMishlachYadPUF])
+                         :SmlMishlachYadPUF
+                         ])
 
 
 (defn compute-pca-components [_]
@@ -298,7 +323,7 @@
       compute-coords
       (fn [_] "/home/we/workspace/data/coords.csv")
       (fn [filename] (read-dataset filename
-                                  :header true))
+                                   :header true))
       (fn [filename object]
         (save object filename))
       nil
@@ -327,8 +352,8 @@
    (map (fn [row]
           (into row
                 ((get-coords-map) (select-keys row
-                                            [:cityCode
-                                             :statAreaCode]))))
+                                               [:cityCode
+                                                :statAreaCode]))))
         (:rows place-dataset))))
 
 
@@ -370,23 +395,25 @@
      (compute-and-save-or-load
       compute-puf-with-components
       (fn [_] (str "/home/we/workspace/data/puf-with-components-"
-                  (hash _)
-                  ".csv"))
+                   (hash _)
+                   ".csv"))
       (fn [filename] (read-dataset filename
-                                  :header true))
+                                   :header true))
       (fn [filename object]
         (save object filename))
       components
       :puf-with-components))))
 
+(comment
+  (time (dim (get-puf-with-components (get-pca-components)))))
 
 
 (defn compute-measures-by-place
   [input]
   (to-dataset
    (for [[place-map subset] ($group-by
-                         [:cityCode :statAreaCode]
-                         ((:dataset-with-places-fn input)))]
+                             [:cityCode :statAreaCode]
+                             ((:dataset-with-places-fn input)))]
      (let [cond-rows-map
            (fmap
             (fn [row-condition]
@@ -395,14 +422,15 @@
             (:condition-map input))]
        (into place-map
              (for [[cond-name cond-rows] cond-rows-map
-                   col-name (:columns-to-summarize input)
+                     col-name (:columns-to-summarize input)
                    [summarizing-fn-name summarizing-fn] (:summarizing-fns-map input)]
                [(concat-keywords col-name
                                  summarizing-fn-name
                                  :given
                                  cond-name)
                 (summarizing-fn
-                 (map col-name cond-rows))]))))))
+                 (map col-name cond-rows))]
+               ))))))
 
 (def get-measures-by-place
   (memoize
@@ -410,12 +438,12 @@
      (compute-and-save-or-load
       compute-measures-by-place
       (fn [input] (str "/home/we/workspace/data/measures-by-place-"
-                      (hash [(keys (:condition-map input))
-                             (:columns-to-summarize input)
-                             (keys (:summarizing-fns-map input))])
-                      ".csv"))
+                       (hash [(keys (:condition-map input))
+                              (:columns-to-summarize input)
+                              (keys (:summarizing-fns-map input))])
+                       ".csv"))
       (fn [filename] (read-dataset filename
-                                  :header true))
+                                   :header true))
       (fn [filename object]
         (save object filename))
       input
@@ -425,18 +453,24 @@
 (def get-standard-measures-by-place
   (memoize
    (fn []
-     (get-measures-by-place
-      {:dataset-with-places-fn (fn []
-                                 (get-puf-with-components (get-pca-components)))
-       :condition-map {:stayed (fn [row]
-                                 (= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))
-                       :moved (fn [row]
-                                (not= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))}
-       :columns-to-summarize [:comp0 :comp1 :comp2 :comp3]
-       :summarizing-fns-map {:count count
-                             :mean (careful-mean 15)}}))))
-
-
+     (let [input {:dataset-with-places-fn (fn []
+                                            (get-puf-with-components (get-pca-components)))
+                  :condition-map {:stayed (fn [row]
+                                            (= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))
+                                  :moved (fn [row]
+                                           (not= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))}
+                  :columns-to-summarize [:comp0 :comp1 :comp2 :comp3
+                                         :new-apt
+                                         :Muslim :Jewish :Christian :Druze
+                                         :aliyah
+                                         :mizrach
+                                         :ashkenaz
+                                         :TzfifutDiurPUF-reg
+                                         :NefashotMeshekBayitPUF-reg
+                                         ]
+                  :summarizing-fns-map {:count count
+                                        :mean (careful-mean 15)}}]
+       (get-measures-by-place input)))))
 
 
 (def get-standard-measures-by-coords
@@ -445,12 +479,8 @@
      (add-coords-to-place-dataset
       (get-standard-measures-by-place)))))
 
-
-
-(defn plot-by-d3 [d3data]
-  (spit "../client/d3data.json"
-        (json/write-str d3data)))
-
+(comment
+  (time (dim (get-standard-measures-by-coords))))
 
 
 (defn compute-sales-summary-by-place-map
@@ -550,7 +580,7 @@
 
 (defn compute-sales-summary-by-coords [years]
   (add-coords-to-place-dataset
-(compute-sales-summary-by-place years)))
+   (compute-sales-summary-by-place years)))
 
 
 (def get-sales-summary-by-coords
@@ -598,6 +628,39 @@
       nil
       :join-by-coords))))
 
+(comment
+  (time (dim (get-join-by-coords))))
+
+
+(defn add-changes-to-join-by-coords []
+  (let [join-by-coords (filter-complete-rows
+                        (filter-all-nonnil-and-nonNaN
+                         (get-join-by-coords)))]
+    (apply conj-cols
+           (cons join-by-coords
+                 (concat
+                  (for [[from-year to-year] [[2006 2010]]]
+                    (dataset
+                     [(keyword (concat-with-delimiter
+                                "-"
+                                ["logit-unifprice-change"
+                                 to-year
+                                 from-year]))]
+                     (map logits-difference
+                          ($ (keyword (str "unifprice" to-year)) join-by-coords)
+                          ($ (keyword (str "unifprice" from-year)) join-by-coords))))
+                  (for [varname [:comp0 :comp1 :comp2 :comp3
+                                 :NefashotMeshekBayitPUF-reg
+                                 :TzfifutDiurPUF-reg
+                                 :new-apt
+                                 :Muslim :Christian :Jewish
+                                 :ashkenaz :mizrach :aliyah]]
+                    (dataset
+                     [(keyword (str
+                                (name varname) "-change"))]
+                     (map -
+                          ($ (keyword (str (name varname) "-mean-given-moved")) join-by-coords)
+                          ($ (keyword (str (name varname) "-mean-given-stayed")) join-by-coords)))))))))
 
 
 (defn compute-sample
@@ -617,9 +680,9 @@
                          (keys (:group-size-by-name input))
                          (map (comp vec
                                     #(map samples %)
-                                       range)
-                                 (cons 0 sizes-cumsum)
-                                 sizes-cumsum))]
+                                    range)
+                              (cons 0 sizes-cumsum)
+                              sizes-cumsum))]
     samples-by-name))
 
 
@@ -636,16 +699,29 @@
         samples-by-name (compute-sample {:coll (range (nrow adataset))
                                          :group-size-by-name {:training (:training-size input)
                                                               :evaluation (- (nrow adataset)
-                                                                          (:training-size input))}})]
+                                                                             (:training-size input))}})]
     (println {:sample-sizes
               (fmap count samples-by-name)})
-    (liblinear/train (:rows
-                      ($ (:training samples-by-name) (:feature-columns input) adataset))
+    (liblinear/train (map
+                      #(assoc % :one 1)
+                      (:rows
+                       ($ (:training samples-by-name) (:feature-columns input) adataset)))
                      ($ (:training samples-by-name) (:response-column input) adataset)
-                      :algorithm (:liblinear-algorithm input)                                                               
-                      :c (:liblinear-c input))))
+                     :algorithm (:liblinear-algorithm input)
+                     :c (:liblinear-c input))))
 
 
+(defn get-liblinear-model-coeff-map [model]
+  (let [w (-> model :liblinear-model (#(.getFeatureWeights %)) vec)]
+    (apply hash-map
+           (apply concat
+                  (filter
+                   (comp not zero? second)
+                   (fmap (comp w dec)
+                         (:dimensions model)))))))
+
+;; (defn get-liblinear-model-labels [model]
+;;   (vec (.getLabels (:liblinear-model model))))
 
 
 (defn predict-by-linear-model
@@ -655,48 +731,79 @@
                                          :group-size-by-name {:training (:training-size input)
                                                               :evaluation (- (nrow adataset)
                                                                              (:training-size input))}})
-        model ((:model-fn input))]
+        model ((:model-fn input))
+        coeff-map (get-liblinear-model-coeff-map model)]
     (fmap
      (fn [set-name]
-       (to-dataset {:prediction (map #(liblinear/predict model %)
-                                     (:rows
-                                      ($ (set-name samples-by-name) (:feature-columns input) adataset)))
+       (to-dataset {:prediction (map
+                                 (fn [row]
+                                   (sum (for [[col-name coeff] coeff-map]
+                                          (* coeff (col-name row)))))
+                                 (map #(assoc % :one 1)
+                                      (:rows
+                                       ($ (set-name samples-by-name) (:feature-columns input) adataset))))
                     :response ($ (set-name samples-by-name) (:response-column input) adataset) }))
      (identity-map (keys samples-by-name)))))
 
 
-(defn get-liblinear-model-coeff-map [model]                                                                                                 
-  (let [w (-> model :liblinear-model (#(.getFeatureWeights %)) vec)]                                                                        
-    (apply hash-map                                                                                                                         
-           (apply concat                                                                                                                    
-                  (filter                                                                                                                   
-                   (comp not zero? second)                                                                                                  
-                   (fmap (comp w dec)                                                                                                       
-                         (:dimensions model)))))))                                                                                          
-
-;; (defn get-liblinear-model-labels [model]                                                                                                    
-;;   (vec (.getLabels (:liblinear-model model))))                                                                                              
-                                                                         
 
 (comment
   (let [input {:dataset-fn (comp filter-all-nonnil-and-nonNaN
                                  get-join-by-coords)
-               :training-size 500
+               :training-size 200
                :feature-columns [:comp0-mean-given-stayed
                                  :comp1-mean-given-stayed
                                  :comp2-mean-given-stayed
                                  :comp3-mean-given-stayed]
                :response-column :unifprice2006
-               :liblinear-algorithm :l1l2_primal
-               :liblinear-c 0.1}
+               :liblinear-algorithm :l2l2
+               :liblinear-c 100000}
         model (train-liblinear-model input)
         _ (println (get-liblinear-model-coeff-map model))
         input (into input
                     {:model-fn (fn [] model)})
         predictions (predict-by-linear-model input)]
-    predictions))
+    (show-charts 1
+                 (for [[set-name prediction-vs-response] predictions]
+                   (scatter-plot :prediction :response
+                                 :data prediction-vs-response
+                                 :title (str (name set-name)
+                                             ":"
+                                             (format "%.3f"
+                                                     (correlation
+                                                      ($ :prediction prediction-vs-response)
+                                                      ($ :response prediction-vs-response)))))))))
 
 
+(comment
+  (let [input {:dataset-fn (comp filter-all-nonnil-and-nonNaN
+                                 add-changes-to-join-by-coords)
+               :training-size 800
+               :feature-columns [  ;; :comp0-change :comp1-change :comp2-change :comp3-change
+                                 :NefashotMeshekBayitPUF-reg-change
+                                 :TzfifutDiurPUF-reg-change
+                                 :new-apt-change
+                                 :Muslim-change :Christian-change :Jewish-change
+                                 :ashkenaz-change :mizrach-change :aliyah-change
+                                 ]
+               :response-column :logit-unifprice-change-2010-2006
+               :liblinear-algorithm :l1l2_primal
+               :liblinear-c 1}
+        model (train-liblinear-model input)
+        _ (println (get-liblinear-model-coeff-map model))
+        input (into input
+                    {:model-fn (fn [] model)})
+        predictions (predict-by-linear-model input)]
+    (show-charts 1
+                 (for [[set-name prediction-vs-response] predictions]
+                   (scatter-plot :prediction :response
+                                 :data prediction-vs-response
+                                 :title (str (name set-name)
+                                             ":"
+                                             (format "%.3f"
+                                                     (correlation
+                                                      ($ :prediction prediction-vs-response)
+                                                      ($ :response prediction-vs-response)))))))))
 
 
 
@@ -725,448 +832,452 @@
 ;;       :liblinear-model)))
 
 
-  ;; (defn general-gen-map-data
-  ;;   [data colname transf color-func]
-  ;;   (let [rows (vec (filter
-  ;;                    (fn [row] (every? #(not (or (nil? %)
-  ;;                                               (Double/isNaN %))) (vals row)))
-  ;;                    (:rows data)))
-  ;;         values (vec
-  ;;                 (map transf
-  ;;                      (map colname rows)))
-  ;;         markers (for [i (range (count rows))]
-  ;;                   (let [vali (values i)
-  ;;                         row (rows i)]
-  ;;                     {:lon (:mean-x row)
-  ;;                      :lat (:mean-y row)
-  ;;                      :label (place-desc row)
-  ;;                      :color (color-func vali)}))
-  ;;         center {:lat (mean (filter identity (map :lat markers)))
-  ;;                 :lon (mean (filter identity (map :lon markers)))}
-  ;;         zoom 11]
-  ;;     {:center center
-  ;;      :zoom zoom
-  ;;      :markers markers}))
+;; (defn general-gen-map-data
+;;   [data colname transf color-func]
+;;   (let [rows (vec (filter
+;;                    (fn [row] (every? #(not (or (nil? %)
+;;                                               (Double/isNaN %))) (vals row)))
+;;                    (:rows data)))
+;;         values (vec
+;;                 (map transf
+;;                      (map colname rows)))
+;;         markers (for [i (range (count rows))]
+;;                   (let [vali (values i)
+;;                         row (rows i)]
+;;                     {:lon (:mean-x row)
+;;                      :lat (:mean-y row)
+;;                      :label (place-desc row)
+;;                      :color (color-func vali)}))
+;;         center {:lat (mean (filter identity (map :lat markers)))
+;;                 :lon (mean (filter identity (map :lon markers)))}
+;;         zoom 11]
+;;     {:center center
+;;      :zoom zoom
+;;      :markers markers}))
 
-  ;; (comment
-  ;;   (let [data (add-coords-to-place-dataset
-  ;;               (get-sales-summary-by-place (range 2006 2011)))]
-  ;;     (spit "../client/data1.json"
-  ;;           (json/write-str
-  ;;            (general-gen-map-data data :unifprice2006 identity probability-to-color)))
-  ;;     (spit "../client/data2.json"
-  ;;           (json/write-str
-  ;;            (general-gen-map-data data :unifprice2010 identity probability-to-color)))))
-
-
-  ;; ;;;;;;;;;;;;;;;;;;;;;;;;
-
-  ;; (defn sets-to-labels
-  ;;   [sets]
-  ;;   (let [idx (range (apply max
-  ;;                           (map #(apply max %)
-  ;;                                sets)))
-  ;;         sets-vec (vec sets)]
-  ;;     (map second
-  ;;          (sort-by first
-  ;;                   (apply concat
-  ;;                          (for [i (range (count sets-vec))]
-  ;;                            (let [aset (sets-vec i)]
-  ;;                              (for [j aset]
-  ;;                                [(int j) (int i)]))))))))
-
-  ;; (comment
-  ;;   (let [data (filter-all-nonnil-and-nonNaN
-  ;;               ($ [:unifprice2006 :unifprice2007 :unifprice2008
-  ;;                   :unifprice2009 :unifprice2010
-  ;;                   :cityCode :statAreaCode]
-  ;;                  (get-join-by-coords)))
-  ;;         clusters (som-batch-train
-  ;;                   (to-matrix
-  ;;                    ($ [:unifprice2006 :unifprice2007 :unifprice2008
-  ;;                        :unifprice2009 :unifprice2010]
-  ;;                       data)))
-  ;;         num-clusters (count (:sets clusters))
-  ;;         labels (sets-to-labels
-  ;;                 (vals (:sets clusters)))
-  ;;         labelled-data (add-coords-to-place-dataset
-  ;;                        (conj-cols data {:label labels}))]
-  ;;     (spit "../client/data2.json"
-  ;;           (json/write-str
-  ;;            (general-gen-map-data labelled-data
-  ;;                                  :label
-  ;;                                  int
-  ;;                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
+;; (comment
+;;   (let [data (add-coords-to-place-dataset
+;;               (get-sales-summary-by-place (range 2006 2011)))]
+;;     (spit "../client/data1.json"
+;;           (json/write-str
+;;            (general-gen-map-data data :unifprice2006 identity probability-to-color)))
+;;     (spit "../client/data2.json"
+;;           (json/write-str
+;;            (general-gen-map-data data :unifprice2010 identity probability-to-color)))))
 
 
+;; ;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; (defn sets-to-labels
+;;   [sets]
+;;   (let [idx (range (apply max
+;;                           (map #(apply max %)
+;;                                sets)))
+;;         sets-vec (vec sets)]
+;;     (map second
+;;          (sort-by first
+;;                   (apply concat
+;;                          (for [i (range (count sets-vec))]
+;;                            (let [aset (sets-vec i)]
+;;                              (for [j aset]
+;;                                [(int j) (int i)]))))))))
+
+;; (comment
+;;   (let [data (filter-all-nonnil-and-nonNaN
+;;               ($ [:unifprice2006 :unifprice2007 :unifprice2008
+;;                   :unifprice2009 :unifprice2010
+;;                   :cityCode :statAreaCode]
+;;                  (get-join-by-coords)))
+;;         clusters (som-batch-train
+;;                   (to-matrix
+;;                    ($ [:unifprice2006 :unifprice2007 :unifprice2008
+;;                        :unifprice2009 :unifprice2010]
+;;                       data)))
+;;         num-clusters (count (:sets clusters))
+;;         labels (sets-to-labels
+;;                 (vals (:sets clusters)))
+;;         labelled-data (add-coords-to-place-dataset
+;;                        (conj-cols data {:label labels}))]
+;;     (spit "../client/data2.json"
+;;           (json/write-str
+;;            (general-gen-map-data labelled-data
+;;                                  :label
+;;                                  int
+;;                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
 
 
 
 
 
 
-  ;; (comment
-  ;;   (let [pre-data (filter-all-nonnil-and-nonNaN
-  ;;                   ($ [
-  ;;                       :prob-a-om :prob-a-os :prob-o-om :prob-o-os
-  ;;                       :mean-ucomp1-om :mean-ucomp1-os
-  ;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
-  ;;                       :n2006 :n2007 :n2008 :n2009 :n2010
-  ;;                       :cityCode :statAreaCode
-  ;;                       :mean-x :mean-y]
-  ;;                      (get-join-by-coords))) 
-  ;;         data (filter-all-nonnil-and-nonNaN
-  ;;               ($ [:ucomp1-change
-  ;;                   :prob-a-change 
-  ;;                   :prob-o-change
-  ;;                   :ucomp1-change
-  ;;                   :unifprice-change-2007-2006
-  ;;                   :unifprice-change-2008-2007
-  ;;                   :unifprice-change-2009-2008
-  ;;                   :unifprice-change-2010-2009
-  ;;                   :n-change-2007-2006
-  ;;                   :n-change-2008-2007
-  ;;                   :n-change-2009-2008
-  ;;                   :n-change-2010-2009
-  ;;                   :cityCode :statAreaCode
-  ;;                   :mean-x :mean-y]
-  ;;                  (conj-cols (to-dataset
-  ;;                              {:prob-a-change (map logits-difference
-  ;;                                                   ($ :prob-a-om pre-data)
-  ;;                                                   ($ :prob-a-os pre-data))
-  ;;                               :prob-o-change (map logits-difference
-  ;;                                                   ($ :prob-o-om pre-data)
-  ;;                                                   ($ :prob-o-os pre-data))
-  ;;                               :ucomp1-change (map logits-difference
-  ;;                                                   ($ :mean-ucomp1-om pre-data)
-  ;;                                                   ($ :mean-ucomp1-os pre-data))
-  ;;                               :unifprice-change-2007-2006 (map logits-difference
-  ;;                                                                ($ :unifprice2007 pre-data)
-  ;;                                                                ($ :unifprice2006 pre-data))
-  ;;                               :unifprice-change-2008-2007 (map logits-difference
-  ;;                                                                ($ :unifprice2008 pre-data)
-  ;;                                                                ($ :unifprice2007 pre-data))
-  ;;                               :unifprice-change-2009-2008 (map logits-difference
-  ;;                                                                ($ :unifprice2009 pre-data)
-  ;;                                                                ($ :unifprice2008 pre-data))
-  ;;                               :unifprice-change-2010-2009 (map logits-difference
-  ;;                                                                ($ :unifprice2010 pre-data)
-  ;;                                                                ($ :unifprice2009 pre-data))
-  ;;                               :n-change-2007-2006 (map log-ratio
-  ;;                                                        ($ :n2007 pre-data)
-  ;;                                                        ($ :n2006 pre-data))
-  ;;                               :n-change-2008-2007 (map log-ratio
-  ;;                                                        ($ :n2008 pre-data)
-  ;;                                                        ($ :n2007 pre-data))
-  ;;                               :n-change-2009-2008 (map log-ratio
-  ;;                                                        ($ :n2009 pre-data)
-  ;;                                                        ($ :n2008 pre-data))
-  ;;                               :n-change-2010-2009 (map log-ratio
-  ;;                                                        ($ :n2010 pre-data)
-  ;;                                                        ($ :n2009 pre-data))})
-  ;;                             pre-data)))
-  ;;         clusters (som-batch-train
-  ;;                   (to-matrix
-  ;;                    ($ [:ucomp1-change
-  ;;                        :prob-a-change 
-  ;;                        :prob-o-change 
-  ;;                        :unifprice-change-2007-2006
-  ;;                        :unifprice-change-2008-2007
-  ;;                        :unifprice-change-2009-2008
-  ;;                        :unifprice-change-2010-2009
-  ;;                        ;; :n-change-2007-2006
-  ;;                        ;; :n-change-2008-2007
-  ;;                        ;; :n-change-2009-2008
-  ;;                        ;; :n-change-2010-2009
-  ;;                        ]
-  ;;                       data)))
-  ;;         num-clusters (count (:sets clusters))
-  ;;         labels (sets-to-labels
-  ;;                 (vals (:sets clusters)))
-  ;;         labelled-data (conj-cols data {:label labels})]
-  ;;     (spit "../client/data2.json"
-  ;;           (json/write-str
-  ;;            (general-gen-map-data labelled-data
-  ;;                                  :label
-  ;;                                  int
-  ;;                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
 
 
-  ;; (defn incanter-dataset-to-weka-dataset
-  ;;   [name incanter-dataset]
-  ;;   (make-dataset name
-  ;;                 (col-names incanter-dataset)
-  ;;                 (map vals (:rows incanter-dataset))))
+;; (comment
+;;   (let [pre-data (filter-all-nonnil-and-nonNaN
+;;                   ($ [
+;;                       :prob-a-om :prob-a-os :prob-o-om :prob-o-os
+;;                       :mean-ucomp1-om :mean-ucomp1-os
+;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+;;                       :n2006 :n2007 :n2008 :n2009 :n2010
+;;                       :cityCode :statAreaCode
+;;                       :mean-x :mean-y]
+;;                      (get-join-by-coords)))
+;;         data (filter-all-nonnil-and-nonNaN
+;;               ($ [:ucomp1-change
+;;                   :prob-a-change
+;;                   :prob-o-change
+;;                   :ucomp1-change
+;;                   :unifprice-change-2007-2006
+;;                   :unifprice-change-2008-2007
+;;                   :unifprice-change-2009-2008
+;;                   :unifprice-change-2010-2009
+;;                   :n-change-2007-2006
+;;                   :n-change-2008-2007
+;;                   :n-change-2009-2008
+;;                   :n-change-2010-2009
+;;                   :cityCode :statAreaCode
+;;                   :mean-x :mean-y]
+;;                  (conj-cols (to-dataset
+;;                              {:prob-a-change (map logits-difference
+;;                                                   ($ :prob-a-om pre-data)
+;;                                                   ($ :prob-a-os pre-data))
+;;                               :prob-o-change (map logits-difference
+;;                                                   ($ :prob-o-om pre-data)
+;;                                                   ($ :prob-o-os pre-data))
+;;                               :ucomp1-change (map logits-difference
+;;                                                   ($ :mean-ucomp1-om pre-data)
+;;                                                   ($ :mean-ucomp1-os pre-data))
+;;                               :unifprice-change-2007-2006 (map logits-difference
+;;                                                                ($ :unifprice2007 pre-data)
+;;                                                                ($ :unifprice2006 pre-data))
+;;                               :unifprice-change-2008-2007 (map logits-difference
+;;                                                                ($ :unifprice2008 pre-data)
+;;                                                                ($ :unifprice2007 pre-data))
+;;                               :unifprice-change-2009-2008 (map logits-difference
+;;                                                                ($ :unifprice2009 pre-data)
+;;                                                                ($ :unifprice2008 pre-data))
+;;                               :unifprice-change-2010-2009 (map logits-difference
+;;                                                                ($ :unifprice2010 pre-data)
+;;                                                                ($ :unifprice2009 pre-data))
+;;                               :n-change-2007-2006 (map log-ratio
+;;                                                        ($ :n2007 pre-data)
+;;                                                        ($ :n2006 pre-data))
+;;                               :n-change-2008-2007 (map log-ratio
+;;                                                        ($ :n2008 pre-data)
+;;                                                        ($ :n2007 pre-data))
+;;                               :n-change-2009-2008 (map log-ratio
+;;                                                        ($ :n2009 pre-data)
+;;                                                        ($ :n2008 pre-data))
+;;                               :n-change-2010-2009 (map log-ratio
+;;                                                        ($ :n2010 pre-data)
+;;                                                        ($ :n2009 pre-data))})
+;;                             pre-data)))
+;;         clusters (som-batch-train
+;;                   (to-matrix
+;;                    ($ [:ucomp1-change
+;;                        :prob-a-change
+;;                        :prob-o-change
+;;                        :unifprice-change-2007-2006
+;;                        :unifprice-change-2008-2007
+;;                        :unifprice-change-2009-2008
+;;                        :unifprice-change-2010-2009
+;;                        ;; :n-change-2007-2006
+;;                        ;; :n-change-2008-2007
+;;                        ;; :n-change-2009-2008
+;;                        ;; :n-change-2010-2009
+;;                        ]
+;;                       data)))
+;;         num-clusters (count (:sets clusters))
+;;         labels (sets-to-labels
+;;                 (vals (:sets clusters)))
+;;         labelled-data (conj-cols data {:label labels})]
+;;     (spit "../client/data2.json"
+;;           (json/write-str
+;;            (general-gen-map-data labelled-data
+;;                                  :label
+;;                                  int
+;;                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
 
 
-  ;; (defn weka-dataset-to-incanter-dataset
-  ;;   [weka-dataset]
-  ;;   (dataset 
-  ;;    (attribute-names weka-dataset)
-  ;;    (map instance-to-map weka-dataset)))
+;; (defn incanter-dataset-to-weka-dataset
+;;   [name incanter-dataset]
+;;   (make-dataset name
+;;                 (col-names incanter-dataset)
+;;                 (map vals (:rows incanter-dataset))))
 
 
-
-  ;; (comment
-  ;;   (let [pre-data (filter-all-nonnil-and-nonNaN
-  ;;                   ($ [
-  ;;                       :prob-a-om :prob-a-os :prob-o-om :prob-o-os
-  ;;                       :mean-ucomp1-om :mean-ucomp1-os
-  ;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
-  ;;                       :n2006 :n2007 :n2008 :n2009 :n2010
-  ;;                       :cityCode :statAreaCode
-  ;;                       :mean-x :mean-y]
-  ;;                      (get-join-by-coords))) 
-  ;;         data (filter-all-nonnil-and-nonNaN
-  ;;               ($ [:ucomp1-change
-  ;;                   :prob-a-change 
-  ;;                   :prob-o-change
-  ;;                   :ucomp1-change
-  ;;                   :unifprice-change-2007-2006
-  ;;                   :unifprice-change-2008-2007
-  ;;                   :unifprice-change-2009-2008
-  ;;                   :unifprice-change-2010-2009
-  ;;                   :n-change-2007-2006
-  ;;                   :n-change-2008-2007
-  ;;                   :n-change-2009-2008
-  ;;                   :n-change-2010-2009
-  ;;                   :cityCode :statAreaCode
-  ;;                   :mean-x :mean-y]
-  ;;                  (conj-cols
-  ;;                   (to-dataset
-  ;;                    {:prob-a-change (map logits-difference
-  ;;                                         ($ :prob-a-om pre-data)
-  ;;                                         ($ :prob-a-os pre-data))
-  ;;                     :prob-o-change (map logits-difference
-  ;;                                         ($ :prob-o-om pre-data)
-  ;;                                         ($ :prob-o-os pre-data))
-  ;;                     :ucomp1-change (map logits-difference
-  ;;                                         ($ :mean-ucomp1-om pre-data)
-  ;;                                         ($ :mean-ucomp1-os pre-data))
-  ;;                     :unifprice-change-2007-2006 (map logits-difference
-  ;;                                                      ($ :unifprice2007 pre-data)
-  ;;                                                      ($ :unifprice2006 pre-data))
-  ;;                     :unifprice-change-2008-2007 (map logits-difference
-  ;;                                                      ($ :unifprice2008 pre-data)
-  ;;                                                      ($ :unifprice2007 pre-data))
-  ;;                     :unifprice-change-2009-2008 (map logits-difference
-  ;;                                                      ($ :unifprice2009 pre-data)
-  ;;                                                      ($ :unifprice2008 pre-data))
-  ;;                     :unifprice-change-2010-2009 (map logits-difference
-  ;;                                                      ($ :unifprice2010 pre-data)
-  ;;                                                      ($ :unifprice2009 pre-data))
-  ;;                     :n-change-2007-2006 (map log-ratio
-  ;;                                              ($ :n2007 pre-data)
-  ;;                                              ($ :n2006 pre-data))
-  ;;                     :n-change-2008-2007 (map log-ratio
-  ;;                                              ($ :n2008 pre-data)
-  ;;                                              ($ :n2007 pre-data))
-  ;;                     :n-change-2009-2008 (map log-ratio
-  ;;                                              ($ :n2009 pre-data)
-  ;;                                              ($ :n2008 pre-data))
-  ;;                     :n-change-2010-2009 (map log-ratio
-  ;;                                              ($ :n2010 pre-data)
-  ;;                                              ($ :n2009 pre-data))})
-  ;;                   pre-data)))
-  ;;         clusterer (make-clusterer :k-means
-  ;;                                   :number-clusters 3
-  ;;                                   :number-iterations 10000)
-  ;;         weka-dataset (incanter-dataset-to-weka-dataset :data
-  ;;                                                        ($ [:ucomp1-change
-  ;;                                                            ;; :prob-a-change 
-  ;;                                                            ;; :prob-o-change 
-  ;;                                                            :unifprice-change-2007-2006
-  ;;                                                            :unifprice-change-2008-2007
-  ;;                                                            :unifprice-change-2009-2008
-  ;;                                                            :unifprice-change-2010-2009
-  ;;                                                            ;; :n-change-2007-2006
-  ;;                                                            ;; :n-change-2008-2007
-  ;;                                                            ;; :n-change-2009-2008
-  ;;                                                            ;; :n-change-2010-2009
-  ;;                                                            ]
-  ;;                                                           data))
-  ;;         _ (clusterer-build clusterer
-  ;;                            weka-dataset)
-  ;;         labels (map (comp parse-int-or-nil name :class instance-to-map)
-  ;;                     (clusterer-cluster clusterer
-  ;;                                        weka-dataset))
-  ;;         labelled-data (conj-cols data {:label labels})]
-  ;;     (spit "../client/data2.json"
-  ;;           (json/write-str
-  ;;            (general-gen-map-data labelled-data
-  ;;                                  :label
-  ;;                                  int
-  ;;                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
-
-
-  ;; (defn random-color
-  ;;   []
-  ;;   (format "#%06X"
-  ;;           (rand-int 16777216)))
+;; (defn weka-dataset-to-incanter-dataset
+;;   [weka-dataset]
+;;   (dataset
+;;    (attribute-names weka-dataset)
+;;    (map instance-to-map weka-dataset)))
 
 
 
-  ;; (comment
-  ;;   (let [pre-data (filter-all-nonnil-and-nonNaN
-  ;;                   ($ [
-  ;;                       :prob-a :prob-a-om :prob-a-os
-  ;;                       :prob-o :prob-o-om :prob-o-os
-  ;;                       :mean-ucomp1-om :mean-ucomp1-os
-  ;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
-  ;;                       :n2006 :n2007 :n2008 :n2009 :n2010
-  ;;                       :cityCode :statAreaCode
-  ;;                       :mean-x :mean-y]
-  ;;                      (get-join-by-coords)))
-  ;;         data pre-data
-  ;;         cluster-to-json
-  ;;         (fn [colnames filename]
-  ;;           (let [ 
-  ;;                 clusterer (make-clusterer :expectation-maximization
-  ;;                                           :number-clusters 10)
-  ;;                 weka-dataset (incanter-dataset-to-weka-dataset
-  ;;                               :data ($ colnames data))
-  ;;                 _ (clusterer-build clusterer
-  ;;                                    weka-dataset)
-  ;;                 labels (map (comp parse-int-or-nil name :class instance-to-map)
-  ;;                             (clusterer-cluster clusterer
-  ;;                                                weka-dataset))
-  ;;                 _ (println (frequencies labels))
-  ;;                 labelled-data (conj-cols data {:label labels})
-  ;;                 num-classes (count (distinct labels))] 
-  ;;             (spit filename
-  ;;                   (json/write-str
-  ;;                    (general-gen-map-data labelled-data
-  ;;                                          :label
-  ;;                                          int
-  ;;                                          (vec (repeatedly num-classes random-color))
-  ;;                                          )))))]
-  ;;     (cluster-to-json [:prob-a-os :prob-o-os :mean-ucomp1-os]
-  ;;                      "../client/data1.json")
-  ;;     (cluster-to-json [:prob-a :prob-o :mean-ucomp1]
-  ;;                      "../client/data2.json")))
+;; (comment
+;;   (let [pre-data (filter-all-nonnil-and-nonNaN
+;;                   ($ [
+;;                       :prob-a-om :prob-a-os :prob-o-om :prob-o-os
+;;                       :mean-ucomp1-om :mean-ucomp1-os
+;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+;;                       :n2006 :n2007 :n2008 :n2009 :n2010
+;;                       :cityCode :statAreaCode
+;;                       :mean-x :mean-y]
+;;                      (get-join-by-coords)))
+;;         data (filter-all-nonnil-and-nonNaN
+;;               ($ [:ucomp1-change
+;;                   :prob-a-change
+;;                   :prob-o-change
+;;                   :ucomp1-change
+;;                   :unifprice-change-2007-2006
+;;                   :unifprice-change-2008-2007
+;;                   :unifprice-change-2009-2008
+;;                   :unifprice-change-2010-2009
+;;                   :n-change-2007-2006
+;;                   :n-change-2008-2007
+;;                   :n-change-2009-2008
+;;                   :n-change-2010-2009
+;;                   :cityCode :statAreaCode
+;;                   :mean-x :mean-y]
+;;                  (conj-cols
+;;                   (to-dataset
+;;                    {:prob-a-change (map logits-difference
+;;                                         ($ :prob-a-om pre-data)
+;;                                         ($ :prob-a-os pre-data))
+;;                     :prob-o-change (map logits-difference
+;;                                         ($ :prob-o-om pre-data)
+;;                                         ($ :prob-o-os pre-data))
+;;                     :ucomp1-change (map logits-difference
+;;                                         ($ :mean-ucomp1-om pre-data)
+;;                                         ($ :mean-ucomp1-os pre-data))
+;;                     :unifprice-change-2007-2006 (map logits-difference
+;;                                                      ($ :unifprice2007 pre-data)
+;;                                                      ($ :unifprice2006 pre-data))
+;;                     :unifprice-change-2008-2007 (map logits-difference
+;;                                                      ($ :unifprice2008 pre-data)
+;;                                                      ($ :unifprice2007 pre-data))
+;;                     :unifprice-change-2009-2008 (map logits-difference
+;;                                                      ($ :unifprice2009 pre-data)
+;;                                                      ($ :unifprice2008 pre-data))
+;;                     :unifprice-change-2010-2009 (map logits-difference
+;;                                                      ($ :unifprice2010 pre-data)
+;;                                                      ($ :unifprice2009 pre-data))
+;;                     :n-change-2007-2006 (map log-ratio
+;;                                              ($ :n2007 pre-data)
+;;                                              ($ :n2006 pre-data))
+;;                     :n-change-2008-2007 (map log-ratio
+;;                                              ($ :n2008 pre-data)
+;;                                              ($ :n2007 pre-data))
+;;                     :n-change-2009-2008 (map log-ratio
+;;                                              ($ :n2009 pre-data)
+;;                                              ($ :n2008 pre-data))
+;;                     :n-change-2010-2009 (map log-ratio
+;;                                              ($ :n2010 pre-data)
+;;                                              ($ :n2009 pre-data))})
+;;                   pre-data)))
+;;         clusterer (make-clusterer :k-means
+;;                                   :number-clusters 3
+;;                                   :number-iterations 10000)
+;;         weka-dataset (incanter-dataset-to-weka-dataset :data
+;;                                                        ($ [:ucomp1-change
+;;                                                            ;; :prob-a-change
+;;                                                            ;; :prob-o-change
+;;                                                            :unifprice-change-2007-2006
+;;                                                            :unifprice-change-2008-2007
+;;                                                            :unifprice-change-2009-2008
+;;                                                            :unifprice-change-2010-2009
+;;                                                            ;; :n-change-2007-2006
+;;                                                            ;; :n-change-2008-2007
+;;                                                            ;; :n-change-2009-2008
+;;                                                            ;; :n-change-2010-2009
+;;                                                            ]
+;;                                                           data))
+;;         _ (clusterer-build clusterer
+;;                            weka-dataset)
+;;         labels (map (comp parse-int-or-nil name :class instance-to-map)
+;;                     (clusterer-cluster clusterer
+;;                                        weka-dataset))
+;;         labelled-data (conj-cols data {:label labels})]
+;;     (spit "../client/data2.json"
+;;           (json/write-str
+;;            (general-gen-map-data labelled-data
+;;                                  :label
+;;                                  int
+;;                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
+
+
+;; (defn random-color
+;;   []
+;;   (format "#%06X"
+;;           (rand-int 16777216)))
 
 
 
-
-  ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; (comment
+;;   (let [pre-data (filter-all-nonnil-and-nonNaN
+;;                   ($ [
+;;                       :prob-a :prob-a-om :prob-a-os
+;;                       :prob-o :prob-o-om :prob-o-os
+;;                       :mean-ucomp1-om :mean-ucomp1-os
+;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+;;                       :n2006 :n2007 :n2008 :n2009 :n2010
+;;                       :cityCode :statAreaCode
+;;                       :mean-x :mean-y]
+;;                      (get-join-by-coords)))
+;;         data pre-data
+;;         cluster-to-json
+;;         (fn [colnames filename]
+;;           (let [
+;;                 clusterer (make-clusterer :expectation-maximization
+;;                                           :number-clusters 10)
+;;                 weka-dataset (incanter-dataset-to-weka-dataset
+;;                               :data ($ colnames data))
+;;                 _ (clusterer-build clusterer
+;;                                    weka-dataset)
+;;                 labels (map (comp parse-int-or-nil name :class instance-to-map)
+;;                             (clusterer-cluster clusterer
+;;                                                weka-dataset))
+;;                 _ (println (frequencies labels))
+;;                 labelled-data (conj-cols data {:label labels})
+;;                 num-classes (count (distinct labels))]
+;;             (spit filename
+;;                   (json/write-str
+;;                    (general-gen-map-data labelled-data
+;;                                          :label
+;;                                          int
+;;                                          (vec (repeatedly num-classes random-color))
+;;                                          )))))]
+;;     (cluster-to-json [:prob-a-os :prob-o-os :mean-ucomp1-os]
+;;                      "../client/data1.json")
+;;     (cluster-to-json [:prob-a :prob-o :mean-ucomp1]
+;;                      "../client/data2.json")))
 
 
 
 
-  ;; ;; (comment
-  ;; ;;   (let [pre-d
-  ;; ;;         (->> (read-cols-and-rows puf-filename)
-  ;; ;;              (transform-cols-and-rows (apply dissoc standard-column-fns
-  ;; ;;                                              col-names-to-avoid))
-  ;; ;;              (add-coords-to-place-dataset)
-  ;; ;;              (add-linear-combination-column (extended-components 0) :xcomp0)
-  ;; ;;              (add-linear-combination-column (extended-components 1) :xcomp1)
-  ;; ;;              (add-linear-combination-column (extended-components 2) :xcomp2)
-  ;; ;;              (add-linear-combination-column (extended-components 3) :xcomp3)
-  ;; ;;              (remove-columns (keys (extended-components 0)))
-  ;; ;;              cols-and-rows-to-dataset
-  ;; ;;              filter-all-nonnil)
-  ;; ;;         pre-d-1 (conj-cols pre-d
-  ;; ;;                            (dataset [:mean-x :mean-y]
-  ;; ;;                                     (map
-  ;; ;;                                         ; change nils with {}s
-  ;; ;;                                      #(if % % {}) 
-  ;; ;;                                      (map coords-map
-  ;; ;;                                           (:rows
-  ;; ;;                                            ($ [:cityCode
-  ;; ;;                                                :statAreaCode]
-  ;; ;;                                               pre-d))))))
-  ;; ;;         pre-d-2 (conj-cols pre-d-1
-  ;; ;;                            {:axcomp0 (map double (adapt-range ($ :xcomp0 pre-d-1)))
-  ;; ;;                             :axcomp1 (map double (adapt-range ($ :xcomp1 pre-d-1)))
-  ;; ;;                             :axcomp2 (map double (adapt-range ($ :xcomp2 pre-d-1)))
-  ;; ;;                             :axcomp3 (map double (adapt-range ($ :xcomp3 pre-d-1)))
-  ;; ;;                             :uxcomp0 (map double (uniformize ($ :xcomp0 pre-d-1)))
-  ;; ;;                             :uxcomp1 (map double (uniformize ($ :xcomp1 pre-d-1)))
-  ;; ;;                             :uxcomp2 (map double (uniformize ($ :xcomp2 pre-d-1)))
-  ;; ;;                             :uxcomp3 (map double (uniformize ($ :xcomp3 pre-d-1)))})
-  ;; ;;         measures-by-place (get-xmeasures-by-place pre-d-2)
-  ;; ;;         measures-by-coords (filter-all-nonnil-and-nonNaN
-  ;; ;;                             (add-coords-to-place-dataset
-  ;; ;;                              measures-by-place))
-  ;; ;;         measures-by-coords-with-info (add-column
-  ;; ;;                                       :yishuv-name (map (comp from-yishuv-code-to-name
-  ;; ;;                                                               (nil-to-val "other")
-  ;; ;;                                                               (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
-  ;; ;;                                                         ($ :cityCode measures-by-coords))
-  ;; ;;                                       (add-column :desc (map place-desc
-  ;; ;;                                                              (:rows measures-by-coords))
-  ;; ;;                                                   measures-by-coords))
-  ;; ;;         x-axis #(* 1000 %)
-  ;; ;;         y-axis #(- 1000 (* 1000 %))
-  ;; ;;         relevant-rows
-  ;; ;;         (:rows measures-by-coords-with-info)
-  ;; ;;         ;; (filter #(#{5000} (:cityCode %))
-  ;; ;;         ;;         (:rows measures-by-coords-with-info))
-  ;; ;;         ]
-  ;; ;;     (plot-by-d3
-  ;; ;;      {"h" 2000
-  ;; ;;       "w" 1000
-  ;; ;;       ;; "lines" [;; {"x" (x-axis 0) "y" (y-axis 0)}
-  ;; ;;       ;;          ;; {"x" (x-axis 1) "y" (y-axis 0)}
-  ;; ;;       ;;          ;; {"x" (x-axis 1) "y" (y-axis 1)}
-  ;; ;;       ;;          ;; {"x" (x-axis 0) "y" (y-axis 1)}
-  ;; ;;       ;;          ;; {"x" (x-axis 0) "y" (y-axis 0)}
-  ;; ;;       ;;          ;; {"x" (x-axis 1) "y" (y-axis 1)}
-  ;; ;;       ;;          ]
-  ;; ;;       "lines"
-  ;; ;;       (map
-  ;; ;;        (fn [row]
-  ;; ;;          {"x1" (x-axis (- 1 (:mean-axcomp0-s row)))
-  ;; ;;           "y1" (x-axis (:mean-axcomp2-s row))
-  ;; ;;           "x2" (x-axis (- 1 (:mean-axcomp0-m row)))
-  ;; ;;           "y2" (x-axis (:mean-axcomp2-m row))})
-  ;; ;;        relevant-rows)
-  ;; ;;       "circles"
-  ;; ;;       (mapcat
-  ;; ;;        (fn [row]
-  ;; ;;          (let [color (case (:cityCode row)
-  ;; ;;                        5000 "white"
-  ;; ;;                        4000 "red"
-  ;; ;;                        3000 "yellow"
-  ;; ;;                        7600 "magenta"
-  ;; ;;                        70 "blue"
-  ;; ;;                        "#666666")
-  ;; ;;                attr-and-style { ;; "r" 5
-  ;; ;;                                ;; (/ (sqrt (:n row))
-  ;; ;;                                ;;     2)
-  ;; ;;                                "fill" color
-  ;; ;;                                "stroke" color
-  ;; ;;                                "opacity" 0.5}]
-  ;; ;;            [(into attr-and-style {"r" 1
-  ;; ;;                                   "cx" (x-axis (- 1 (:mean-axcomp0-m row)))
-  ;; ;;                                   "cy" (x-axis (:mean-axcomp2-m row))
-  ;; ;;                                   "text" (str (:desc row) "-M")})
-  ;; ;;             (into attr-and-style {"r" 3
-  ;; ;;                                   "cx" (x-axis (- 1 (:mean-axcomp0-s row)))
-  ;; ;;                                   "cy" (x-axis (:mean-axcomp2-s row))
-  ;; ;;                                   "text" (str (:desc row) "-S")})]))
-  ;; ;;        relevant-rows)})
-  ;; ;;     (save
-  ;; ;;      ($ [:desc
-  ;; ;;          :mean-axcomp0-m
-  ;; ;;          :mean-axcomp0-s
-  ;; ;;          :mean-axcomp1-m
-  ;; ;;          :mean-axcomp1-s
-  ;; ;;          :mean-axcomp2-m
-  ;; ;;          :mean-axcomp2-s
-  ;; ;;          :mean-axcomp3-m
-  ;; ;;          :mean-axcomp3-s
-  ;; ;;          ;; :mean-x
-  ;; ;;          ;; :mean-y
-  ;; ;;          ;; :n                             
-  ;; ;;          :yishuv-name]
-  ;; ;;         measures-by-coords-with-info)
-  ;; ;;      "../client/my-scatter/scatter.csv")))
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 
-  ;; ;;;;;;;;;;;;;;;;
 
-  ;; ;; - arrows
-  ;; ;; - stability of pca wrt randomization
+;; ;; (comment
+;; ;;   (let [pre-d
+;; ;;         (->> (read-cols-and-rows puf-filename)
+;; ;;              (transform-cols-and-rows (apply dissoc standard-column-fns
+;; ;;                                              col-names-to-avoid))
+;; ;;              (add-coords-to-place-dataset)
+;; ;;              (add-linear-combination-column (extended-components 0) :xcomp0)
+;; ;;              (add-linear-combination-column (extended-components 1) :xcomp1)
+;; ;;              (add-linear-combination-column (extended-components 2) :xcomp2)
+;; ;;              (add-linear-combination-column (extended-components 3) :xcomp3)
+;; ;;              (remove-columns (keys (extended-components 0)))
+;; ;;              cols-and-rows-to-dataset
+;; ;;              filter-all-nonnil)
+;; ;;         pre-d-1 (conj-cols pre-d
+;; ;;                            (dataset [:mean-x :mean-y]
+;; ;;                                     (map
+;; ;;                                         ; change nils with {}s
+;; ;;                                      #(if % % {})
+;; ;;                                      (map coords-map
+;; ;;                                           (:rows
+;; ;;                                            ($ [:cityCode
+;; ;;                                                :statAreaCode]
+;; ;;                                               pre-d))))))
+;; ;;         pre-d-2 (conj-cols pre-d-1
+;; ;;                            {:axcomp0 (map double (adapt-range ($ :xcomp0 pre-d-1)))
+;; ;;                             :axcomp1 (map double (adapt-range ($ :xcomp1 pre-d-1)))
+;; ;;                             :axcomp2 (map double (adapt-range ($ :xcomp2 pre-d-1)))
+;; ;;                             :axcomp3 (map double (adapt-range ($ :xcomp3 pre-d-1)))
+;; ;;                             :uxcomp0 (map double (uniformize ($ :xcomp0 pre-d-1)))
+;; ;;                             :uxcomp1 (map double (uniformize ($ :xcomp1 pre-d-1)))
+;; ;;                             :uxcomp2 (map double (uniformize ($ :xcomp2 pre-d-1)))
+;; ;;                             :uxcomp3 (map double (uniformize ($ :xcomp3 pre-d-1)))})
+;; ;;         measures-by-place (get-xmeasures-by-place pre-d-2)
+;; ;;         measures-by-coords (filter-all-nonnil-and-nonNaN
+;; ;;                             (add-coords-to-place-dataset
+;; ;;                              measures-by-place))
+;; ;;         measures-by-coords-with-info (add-column
+;; ;;                                       :yishuv-name (map (comp from-yishuv-code-to-name
+;; ;;                                                               (nil-to-val "other")
+;; ;;                                                               (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
+;; ;;                                                         ($ :cityCode measures-by-coords))
+;; ;;                                       (add-column :desc (map place-desc
+;; ;;                                                              (:rows measures-by-coords))
+;; ;;                                                   measures-by-coords))
+;; ;;         x-axis #(* 1000 %)
+;; ;;         y-axis #(- 1000 (* 1000 %))
+;; ;;         relevant-rows
+;; ;;         (:rows measures-by-coords-with-info)
+;; ;;         ;; (filter #(#{5000} (:cityCode %))
+;; ;;         ;;         (:rows measures-by-coords-with-info))
+;; ;;         ]
+;; ;;     (plot-by-d3
+;; ;;      {"h" 2000
+;; ;;       "w" 1000
+;; ;;       ;; "lines" [;; {"x" (x-axis 0) "y" (y-axis 0)}
+;; ;;       ;;          ;; {"x" (x-axis 1) "y" (y-axis 0)}
+;; ;;       ;;          ;; {"x" (x-axis 1) "y" (y-axis 1)}
+;; ;;       ;;          ;; {"x" (x-axis 0) "y" (y-axis 1)}
+;; ;;       ;;          ;; {"x" (x-axis 0) "y" (y-axis 0)}
+;; ;;       ;;          ;; {"x" (x-axis 1) "y" (y-axis 1)}
+;; ;;       ;;          ]
+;; ;;       "lines"
+;; ;;       (map
+;; ;;        (fn [row]
+;; ;;          {"x1" (x-axis (- 1 (:mean-axcomp0-s row)))
+;; ;;           "y1" (x-axis (:mean-axcomp2-s row))
+;; ;;           "x2" (x-axis (- 1 (:mean-axcomp0-m row)))
+;; ;;           "y2" (x-axis (:mean-axcomp2-m row))})
+;; ;;        relevant-rows)
+;; ;;       "circles"
+;; ;;       (mapcat
+;; ;;        (fn [row]
+;; ;;          (let [color (case (:cityCode row)
+;; ;;                        5000 "white"
+;; ;;                        4000 "red"
+;; ;;                        3000 "yellow"
+;; ;;                        7600 "magenta"
+;; ;;                        70 "blue"
+;; ;;                        "#666666")
+;; ;;                attr-and-style { ;; "r" 5
+;; ;;                                ;; (/ (sqrt (:n row))
+;; ;;                                ;;     2)
+;; ;;                                "fill" color
+;; ;;                                "stroke" color
+;; ;;                                "opacity" 0.5}]
+;; ;;            [(into attr-and-style {"r" 1
+;; ;;                                   "cx" (x-axis (- 1 (:mean-axcomp0-m row)))
+;; ;;                                   "cy" (x-axis (:mean-axcomp2-m row))
+;; ;;                                   "text" (str (:desc row) "-M")})
+;; ;;             (into attr-and-style {"r" 3
+;; ;;                                   "cx" (x-axis (- 1 (:mean-axcomp0-s row)))
+;; ;;                                   "cy" (x-axis (:mean-axcomp2-s row))
+;; ;;                                   "text" (str (:desc row) "-S")})]))
+;; ;;        relevant-rows)})
+;; ;;     (save
+;; ;;      ($ [:desc
+;; ;;          :mean-axcomp0-m
+;; ;;          :mean-axcomp0-s
+;; ;;          :mean-axcomp1-m
+;; ;;          :mean-axcomp1-s
+;; ;;          :mean-axcomp2-m
+;; ;;          :mean-axcomp2-s
+;; ;;          :mean-axcomp3-m
+;; ;;          :mean-axcomp3-s
+;; ;;          ;; :mean-x
+;; ;;          ;; :mean-y
+;; ;;          ;; :n
+;; ;;          :yishuv-name]
+;; ;;         measures-by-coords-with-info)
+;; ;;      "../client/my-scatter/scatter.csv")))
+
+
+
+;; ;;;;;;;;;;;;;;;;
+
+;; ;; - arrows
+;; ;; - stability of pca wrt randomization
+
+(defn plot-by-d3 [d3data]
+  (spit "../client/d3data.json"
+        (json/write-str d3data)))
