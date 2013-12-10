@@ -34,6 +34,8 @@
                  ;; (using checkouts dir instead) [daslu/clj-utils
 ;; "0.1.0-SNAPSHOT"]
                  [org.clojure/data.generators "0.1.2"]
+                 [svm-clj "0.1.3"]
+                 [clatrix "0.3.0"]
                  ]
   ;;:main mmi-proj.puf
   :jvm-opts ["-Xmx6g"] )

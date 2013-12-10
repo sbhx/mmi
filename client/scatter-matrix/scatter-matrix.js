@@ -116,7 +116,7 @@ ScatterMatrix.prototype.render = function () {
 
         variable_li.append('input')
             .attr('type', 'checkbox')
-            .attr('checked', 'checked')
+            .attr('checked', false)
             .on('click', function(d, i) {
                 var new_to_include = [];
                 for (var j in to_include) {
@@ -195,8 +195,8 @@ ScatterMatrix.prototype.__draw = function(container_el, color_variable, color, t
             domain = 
                 //[-1,1];
                 [d3.min(data, value), d3.max(data, value)],
-            range_x = [padding / 2, size - padding / 2],
-            range_y = [padding / 2, size - padding / 2];
+            range_x =  [padding / 2, size - padding / 2],
+            range_y =  [padding / 2, size - padding / 2];
 
             x[trait] = d3.scale.linear().domain(domain).range(range_x);
             y[trait] = d3.scale.linear().domain(domain).range(range_y.reverse());
@@ -261,7 +261,7 @@ ScatterMatrix.prototype.__draw = function(container_el, color_variable, color, t
             .attr("class", "y axis")
             .attr("transform", function(d, i) { return "translate(0," + i * size + ")"; })
             .each(function(d) { d3.select(this).call(axis.scale(y[d]).orient("right")); });
-
+        
         // Draw scatter plot
         var cell = svg.selectAll("g.cell")
             .data(cross(numeric_variables, numeric_variables))

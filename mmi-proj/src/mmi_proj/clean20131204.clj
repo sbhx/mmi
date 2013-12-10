@@ -1,10 +1,10 @@
 (comment
   (do
+    (do
+      (require 'mmi-proj.clean20131204 :reload-all)
+      (in-ns 'mmi-proj.clean20131204))
     (defn reload []
-      (do
-        (require 'mmi-proj.clean20131204 :reload-all)
-        (in-ns 'mmi-proj.clean20131204)))
-    (reload)))
+      (require 'mmi-proj.clean20131204 :reload-all))))
 
 (ns mmi-proj.clean20131204
   (:import java.lang.Math)
@@ -39,6 +39,7 @@
   (:use hiccup.core)
   (:use clojure.stacktrace)
   (:use [clj-ml data clusterers])
+  (:require [clatrix.core :as clx])                                                                                                         
   (:require [clj-liblinear.core :as liblinear])
   (:require [clojure.data.generators :as gen]))
 
@@ -273,12 +274,31 @@
               (select-keys standard-column-fns pca-columns))
              cols-and-rows-to-dataset
              filter-all-nonnil)
+        data-matrix (to-matrix data-for-pca)
+        centered-matrix (bind-columns
+                         (for [i (range (ncol data-matrix))]
+                          (clx/-
+                           ($ i data-matrix)
+                           (mean (seq ($ i data-matrix))))))
         pca
-        (principal-components (to-matrix data-for-pca))]
-    (vec (for [i (range (ncol data-for-pca))]
-           (apply hash-map (interleave
-                            (col-names data-for-pca)
-                            ($ i (:rotation pca))))))))
+        (principal-components centered-matrix)
+        components
+        (vec (for [i (range (ncol data-for-pca))]
+               (apply hash-map (interleave
+                                (col-names data-for-pca)
+                                ($ i :all (:rotation pca))))))
+        data-for-pca-with-components
+        (-> data-for-pca
+            dataset-to-cols-and-rows
+            ((apply comp
+                    (for [i (range (count components))]
+                      #(add-linear-combination-column (components i)
+                                                      (keyword (str "comp" i))
+                                                      %))))
+            cols-and-rows-to-dataset)]
+    (with-data data-for-pca-with-components
+      (correlation ($ :comp0)
+                   ($ :comp1)))))
 
 (def get-pca-components
   (memoize
@@ -455,7 +475,8 @@
    (fn []
      (let [input {:dataset-with-places-fn (fn []
                                             (get-puf-with-components (get-pca-components)))
-                  :condition-map {:stayed (fn [row]
+                  :condition-map {:all (fn [row] true)
+                                  :stayed (fn [row]
                                             (= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))
                                   :moved (fn [row]
                                            (not= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))}
@@ -639,7 +660,8 @@
     (apply conj-cols
            (cons join-by-coords
                  (concat
-                  (for [[from-year to-year] [[2006 2010]]]
+                  (for [[from-year to-year] [[2006 2007] [2007 2008] [2008 2009] [2009 2010]
+                                             [2006 2010]]]
                     (dataset
                      [(keyword (concat-with-delimiter
                                 "-"
@@ -659,8 +681,76 @@
                      [(keyword (str
                                 (name varname) "-change"))]
                      (map -
-                          ($ (keyword (str (name varname) "-mean-given-moved")) join-by-coords)
+                          ($ (keyword (str (name varname) "-mean-given-all")) join-by-coords)
                           ($ (keyword (str (name varname) "-mean-given-stayed")) join-by-coords)))))))))
+
+
+(comment
+  (let [data (->> (add-changes-to-join-by-coords)
+                  ($ [:cityCode :statAreaCode
+                      :NefashotMeshekBayitPUF-reg-change
+                      ;;:TzfifutDiurPUF-reg-change
+                      :new-apt-change
+                      ;; :Muslim-change :Christian-change 
+                      ;;:Jewish-change
+                      :ashkenaz-change
+                      ;;:mizrach-change
+                      ;; :aliyah-change
+                      :comp0-mean-given-all
+                      :comp1-mean-given-all
+                      :comp0-change
+                      :comp1-change
+                      :mean-x
+                      :mean-y
+                      ]))
+        data (add-column
+              :yishuv-name (map (comp from-yishuv-code-to-name
+                                      (nil-to-val "other")
+                                      (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
+                                ($ :cityCode data))
+              (add-column :desc (map place-desc
+                                     (:rows data))
+                          data))
+        data ($ (filter (complement #{:cityCode :statAreaCode})
+                        (col-names data))
+                data)
+        ;; data (->> data
+        ;;           :rows
+        ;;           (map (fn [row]
+        ;;                  (into {}
+        ;;                        (for [[k v] row]
+        ;;                          (if (number? v)
+        ;;                            {k (abs v)}
+        ;;                            {k v})))))
+        ;;           to-dataset)
+        ]
+    (save data "../client/my-scatter/scatter.csv")
+    (->> data
+         :rows
+         (map #(fmap signum %))
+         freqs-as-rows
+         (map #(into (:val %) {:-count (:count %)}))
+         (map #(into (sorted-map) %))
+         (filter #(<= 10 (:-count %)))
+         print-table
+         ))
+  (sdisplay 1
+            (s/vertical-panel
+             :items
+             (for [varname [:NefashotMeshekBayitPUF-reg-change
+                            :TzfifutDiurPUF-reg-change
+                            :new-apt-change
+                            :Muslim-change :Christian-change :Jewish-change
+                            :ashkenaz-change :mizrach-change :aliyah-change]]
+               (org.jfree.chart.ChartPanel.
+                (histogram (filter (complement zero?)
+                                   ($ varname
+                                      (add-changes-to-join-by-coords)))
+                           :title (name varname)
+                           :nbins 100))))
+            nil))
+
+
 
 
 (defn compute-sample
@@ -807,6 +897,86 @@
 
 
 
+(defn incanter-dataset-to-weka-dataset
+  [name incanter-dataset]
+  (make-dataset name
+                (col-names incanter-dataset)
+                (map vals (:rows incanter-dataset))))
+
+
+(defn weka-dataset-to-incanter-dataset
+  [weka-dataset]
+  (dataset
+   (attribute-names weka-dataset)
+   (map instance-to-map weka-dataset)))
+
+
+
+(defn general-gen-map-data
+  [data colname transf color-func]
+  (let [rows (vec (filter
+                   (fn [row] (every? #(not (or (nil? %)
+                                              (Double/isNaN %))) (vals row)))
+                   (:rows data)))
+        values (vec
+                (map transf
+                     (map colname rows)))
+        markers (for [i (range (count rows))]
+                  (let [vali (values i)
+                        row (rows i)]
+                    {:lon (:mean-x row)
+                     :lat (:mean-y row)
+                     :label (place-desc row)
+                     :color (color-func vali)}))
+        center {:lat (mean (filter identity (map :lat markers)))
+                :lon (mean (filter identity (map :lon markers)))}
+        zoom 11]
+    {:center center
+     :zoom zoom
+     :markers markers}))
+
+
+
+(comment
+  (let [data (filter-all-nonnil-and-nonNaN
+              (add-changes-to-join-by-coords))
+        clusterer (make-clusterer :k-means
+                                  :number-clusters 3
+                                  :number-iterations 10000)
+        weka-dataset (incanter-dataset-to-weka-dataset :data
+                                                       ($ [:NefashotMeshekBayitPUF-reg-change
+                                                           :TzfifutDiurPUF-reg-change
+                                                           :new-apt-change
+                                                           :Muslim-change :Christian-change :Jewish-change
+                                                           :ashkenaz-change :mizrach-change :aliyah-change]
+                                                          data))
+        _ (clusterer-build clusterer
+                           weka-dataset)
+        labels (map (comp parse-int-or-nil name :class instance-to-map)
+                    (clusterer-cluster clusterer
+                                       weka-dataset))
+        labelled-data (conj-cols data {:label labels})]
+    (spit "../client/data2.json"
+          (json/write-str
+           (general-gen-map-data labelled-data
+                                 :label
+                                 int
+                                 ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -831,29 +1001,6 @@
 ;;       input
 ;;       :liblinear-model)))
 
-
-;; (defn general-gen-map-data
-;;   [data colname transf color-func]
-;;   (let [rows (vec (filter
-;;                    (fn [row] (every? #(not (or (nil? %)
-;;                                               (Double/isNaN %))) (vals row)))
-;;                    (:rows data)))
-;;         values (vec
-;;                 (map transf
-;;                      (map colname rows)))
-;;         markers (for [i (range (count rows))]
-;;                   (let [vali (values i)
-;;                         row (rows i)]
-;;                     {:lon (:mean-x row)
-;;                      :lat (:mean-y row)
-;;                      :label (place-desc row)
-;;                      :color (color-func vali)}))
-;;         center {:lat (mean (filter identity (map :lat markers)))
-;;                 :lon (mean (filter identity (map :lon markers)))}
-;;         zoom 11]
-;;     {:center center
-;;      :zoom zoom
-;;      :markers markers}))
 
 ;; (comment
 ;;   (let [data (add-coords-to-place-dataset
@@ -998,19 +1145,6 @@
 ;;                                  int
 ;;                                  ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
 
-
-;; (defn incanter-dataset-to-weka-dataset
-;;   [name incanter-dataset]
-;;   (make-dataset name
-;;                 (col-names incanter-dataset)
-;;                 (map vals (:rows incanter-dataset))))
-
-
-;; (defn weka-dataset-to-incanter-dataset
-;;   [weka-dataset]
-;;   (dataset
-;;    (attribute-names weka-dataset)
-;;    (map instance-to-map weka-dataset)))
 
 
 
