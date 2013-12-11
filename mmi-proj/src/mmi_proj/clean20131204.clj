@@ -39,8 +39,7 @@
   (:use hiccup.core)
   (:use clojure.stacktrace)
   (:use [clj-ml data clusterers])
-  (:require [clatrix.core :as clx])                                                                                                         
-  (:require [clj-liblinear.core :as liblinear])
+  (:require [clatrix.core :as clx])                                             (:require [clj-liblinear.core :as liblinear])
   (:require [clojure.data.generators :as gen]))
 
 (apply require clojure.main/repl-requires)
@@ -275,18 +274,21 @@
              cols-and-rows-to-dataset
              filter-all-nonnil)
         data-matrix (to-matrix data-for-pca)
-        centered-matrix (bind-columns
+        centered-matrix (apply bind-columns
                          (for [i (range (ncol data-matrix))]
                           (clx/-
                            ($ i data-matrix)
                            (mean (seq ($ i data-matrix))))))
         pca
         (principal-components centered-matrix)
+        svd (clx/svd centered-matrix)
+        svded-matrix (clx/* centered-matrix
+                          (:right svd))
         components
         (vec (for [i (range (ncol data-for-pca))]
                (apply hash-map (interleave
                                 (col-names data-for-pca)
-                                ($ i :all (:rotation pca))))))
+                                ($ i (:rotation pca))))))
         data-for-pca-with-components
         (-> data-for-pca
             dataset-to-cols-and-rows
@@ -295,7 +297,8 @@
                       #(add-linear-combination-column (components i)
                                                       (keyword (str "comp" i))
                                                       %))))
-            cols-and-rows-to-dataset)]
+            cols-and-rows-to-dataset)
+        ]
     (with-data data-for-pca-with-components
       (correlation ($ :comp0)
                    ($ :comp1)))))

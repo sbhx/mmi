@@ -60,7 +60,7 @@
   (let [n 1000
         x (repeatedly n gen/float)
         y (repeatedly n gen/float)
-        z (map + x y)
+        z (map + x y (repeatedly n gen/float))
         data (bind-columns x y z)
         m (ncol data)
         centered-data (apply bind-columns
