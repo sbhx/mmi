@@ -381,12 +381,17 @@
 
 
 (defn place-desc
-  [row]
+  [cityCode statAreaCode]
   (str (clojure.string/replace
-        (from-yishuv-code-to-name (:cityCode row))
+        (from-yishuv-code-to-name cityCode)
         #"o" "")
        "-"
-       (:statAreaCode row)))
+       statAreaCode))
+
+(defn place-desc-of-row
+  [row]
+  (place-desc (:cityCode row)
+              (:statAreaCode row)))
 
 
 (defn probability-to-color
@@ -711,7 +716,7 @@
                                       (nil-to-val "other")
                                       (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
                                 ($ :cityCode data))
-              (add-column :desc (map place-desc
+              (add-column :desc (map place-desc-of-row
                                      (:rows data))
                           data))
         data ($ (filter (complement #{:cityCode :statAreaCode})
@@ -929,7 +934,7 @@
                         row (rows i)]
                     {:lon (:mean-x row)
                      :lat (:mean-y row)
-                     :label (place-desc row)
+                     :label (place-desc-of-row row)
                      :color (color-func vali)}))
         center {:lat (mean (filter identity (map :lat markers)))
                 :lon (mean (filter identity (map :lon markers)))}
@@ -1338,7 +1343,7 @@
 ;; ;;                                                               (nil-to-val "other")
 ;; ;;                                                               (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800}))
 ;; ;;                                                         ($ :cityCode measures-by-coords))
-;; ;;                                       (add-column :desc (map place-desc
+;; ;;                                       (add-column :desc (map place-desc-of-row
 ;; ;;                                                              (:rows measures-by-coords))
 ;; ;;                                                   measures-by-coords))
 ;; ;;         x-axis #(* 1000 %)
@@ -1418,3 +1423,229 @@
 (defn plot-by-d3 [d3data]
   (spit "../client/d3data.json"
         (json/write-str d3data)))
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+(comment
+  (->> puf-filename
+       read-cols-and-rows
+       (filter-cols-and-rows #(= "5000" (:SmlYishuvPUF %)))
+       (transform-cols-and-rows {:statAreaCode
+                                 (comp parse-int-or-nil
+                                       :SmlEzorStatistiKtvtMegurimPUF)
+                                 :ashkenaz (comp (specific-vals-to-1-others-to-0 #{3 5})
+                                                 parse-int-or-nil
+                                                 :YabeshetMotzaByAvMchlkMchvPUF)
+                                 :stayed (comp #(= 1 %) parse-int-or-nil :KtvtLifney5ShanaMachozMchvPUF)
+                                 })
+       :rows
+       frequencies
+       (map (fn [val-and-freq]
+              (into (first val-and-freq) {:count (second val-and-freq)})))
+       (sort-by :statAreaCode)
+       print-table)
+
+  (->> puf-filename
+       read-cols-and-rows
+       (filter-cols-and-rows #(= "2650" (:SmlYishuvPUF %)))
+       (transform-cols-and-rows {;;:statAreaCode
+                                 ;; (comp parse-int-or-nil
+                                 ;;    :SmlEzorStatistiKtvtMegurimPUF)
+                                 :ashkenaz (comp (specific-vals-to-1-others-to-0 #{3 5})
+                                                 parse-int-or-nil
+                                                 :YabeshetMotzaByAvMchlkMchvPUF)
+                                 :KtvtLifney5ShanaMachozMchvPUF (comp parse-int-or-nil :KtvtLifney5ShanaMachozMchvPUF)
+                                 })
+       :rows
+       frequencies
+       (map (fn [val-and-freq]
+              (into (first val-and-freq) {:count (second val-and-freq)})))
+       (sort-by :count)
+       print-table))
+
+(def period-descs
+  {0 "ביישוב מלידה"
+   1 "עד 1947"
+   2 "1948-1954"
+   3 "1955-1964"
+   4 "1965-1974"
+   5 "1975-1984"
+   6 "1985-1989"
+   7 "1990-1994"
+   8 "1995-1999"
+   9 "2000-2004"
+   10 "2005 ויותר"})
+   
+(defn draw [cityCode]
+  (let [origin-by-period
+        (->> puf-filename
+             read-cols-and-rows
+             (filter-cols-and-rows #(= (str cityCode) (:SmlYishuvPUF %)))
+             (transform-cols-and-rows { ;;:statAreaCode
+                                       ;; (comp parse-int-or-nil
+                                       ;;    :SmlEzorStatistiKtvtMegurimPUF)
+                                       :origin (comp parse-int-or-nil
+                                                     :YabeshetMotzaByAvMchlkMchvPUF)
+                                       ;; :mizrach (comp (specific-vals-to-1-others-to-0 #{1 2})
+                                       ;;                parse-int-or-nil
+                                       ;;                :YabeshetMotzaByAvMchlkMchvPUF)
+                                       ;; :ashkenaz (comp (specific-vals-to-1-others-to-0 #{3 5})
+                                       ;;                 parse-int-or-nil
+                                       ;;                 :YabeshetMotzaByAvMchlkMchvPUF)
+                                       :period (comp regular-int-or-nil :ShanaKnisaYishuvPUF)
+                                       })
+             (filter-cols-and-rows :period)
+             (filter-cols-and-rows :origin)
+             ($group-by [:period])
+             (#(for [[k v] %]
+                 (into k
+                       (dissoc (frequencies (to-seq ($ :origin v)))
+                               nil))))
+             (dataset [:period 0 1 2 3 4 5 6 7 8 9 10])
+             ($order :period :asc))]
+    (show-chart cityCode
+                (with-data origin-by-period
+                  (add-lines
+                   (xy-plot ($ :period)
+                            (map + ($ 1) ($ 2))
+                            :title (from-yishuv-code-to-name cityCode)
+                            )
+                   :period 3)))))
+
+(defn draw-by-stat-area [cityCode]
+  (let [cols-and-rows-of-this-city (->> puf-filename
+                                        read-cols-and-rows
+                                        (filter-cols-and-rows #(= (str cityCode) (:SmlYishuvPUF %)))
+                                        (transform-cols-and-rows {
+                                                                  :statAreaCode
+                                                                  (comp (nil-to-val :other)
+                                                                        parse-int-or-nil
+                                                                        :SmlEzorStatistiKtvtMegurimPUF)
+                                                                  :origin (fn [row]
+                                                                            (keyword
+                                                                             (str
+                                                                              (parse-int-or-nil (:YabeshetMotzaByAvMchlkMchvPUF row))
+                                                                              (if (= "1" (:OleShnot90MchvPUF row))
+                                                                                "o"
+                                                                                ""))))
+                                                                  :period (comp regular-int-or-nil
+                                                                                :ShanaKnisaYishuvPUF)}))
+        origin-types (sort
+                      (->> cols-and-rows-of-this-city
+                           :rows
+                           (map :origin)
+                           distinct))]
+    (for [statAreaCode (filter identity
+                               (get-stat-areas-of-city cityCode))]
+      (future (let [origin-by-period
+                    (->> cols-and-rows-of-this-city
+                         (filter-cols-and-rows #(= statAreaCode (:statAreaCode %)))
+                         (filter-cols-and-rows :period)
+                         (filter-cols-and-rows :origin)
+                         ($group-by [:period])
+                         (#(for [[k v] %]
+                             (into k
+                                   (dissoc (frequencies (to-seq ($ :origin v)))
+                                           nil))))
+                         (dataset (cons :period origin-types))
+                         ($order :period :asc))
+                    origin-by-period-with-compound-origins (conj-cols origin-by-period
+                                                                      (with-data origin-by-period
+                                                                        {:o (map +
+                                                                                 (map nil-to-zero ($ :1o))
+                                                                                 (map nil-to-zero ($ :2o))
+                                                                                 (map nil-to-zero ($ :3o))
+                                                                                 (map nil-to-zero ($ :5o)))
+                                                                         :a (map nil-to-zero ($ :3))
+                                                                         :m (map +
+                                                                                 (map nil-to-zero ($ :1))
+                                                                                 (map nil-to-zero ($ :2 )))}))
+                    desc (place-desc cityCode statAreaCode)]
+                (sdisplay desc
+                 (ChartPanel.
+                  (with-data origin-by-period-with-compound-origins
+                    (add-lines
+                     (add-lines
+                      (xy-plot :period :m
+                               :title ""
+                               :x-label ""
+                               :y-label "")
+                      :period :a)
+                     :period :o)))
+                 nil))))))
+
+
+
+(def get-cities
+  (memoize 
+   (fn [cityCode]
+     (->> puf-filename
+          read-cols-and-rows
+          :rows
+          (map :SmlYishuvPUF)
+          distinct))))
+
+(def get-stat-areas-of-city
+  (memoize
+   (fn [cityCode]
+     (->> puf-filename
+          read-cols-and-rows
+          (filter-cols-and-rows #(= (str cityCode) (:SmlYishuvPUF %)))
+          :rows
+          (map :SmlEzorStatistiKtvtMegurimPUF)
+          distinct
+          (map (comp (nil-to-val :other)
+                     parse-int-or-nil
+                     :SmlEzorStatistiKtvtMegurimPUF))))))
+
+
+
+
+(defn plot-coordinates []
+ (let [coords ($where {:mean-x {:$gt 0}
+                       :mean-y {:$gt 0}}
+                      (filter-all-nonnil
+                       (get-coords)))
+       min-x (apply min ($ :mean-x coords))
+       min-y (apply min ($ :mean-y coords))
+       max-x (apply max ($ :mean-x coords))
+       max-y (apply max ($ :mean-y coords))
+       x-axis #(* 5000
+                  (/ (- % min-x)
+                     (- max-x min-x )))
+       y-axis #(- 10000
+                  (* 10000 (/ (- % min-y)
+                             (- max-x min-y ))))]
+    (plot-by-d3
+     {"h" 10000
+      "w" 5000
+      "lines" []
+      "circles"
+      (map
+       (fn [row]
+         {"r" 3
+          "fill" "red"
+          "stroke" "red"
+          "opacity" 0.5
+          "cx" (x-axis (:mean-x row))
+          "cy" (y-axis (:mean-y row))
+          "text" (place-desc-of-row row)})
+       (:rows coords))})))
+
+
+
+(comment
+  (->> puf-filename
+       read-cols-and-rows
+       (transform-cols-and-rows
+        {:YabeshetMotzaByAvMchlkMchvPUF (comp parse-int-or-nil :YabeshetMotzaByAvMchlkMchvPUF)
+         :OleShnot90MchvPUF (comp parse-int-or-nil :OleShnot90MchvPUF)})
+       :rows
+       freqs-as-rows
+       ))
