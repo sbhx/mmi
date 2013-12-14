@@ -341,16 +341,18 @@
 ;;;;;;;;;;;;;;;;;;;;
 
 
-(defn compute-coords [_]
+(defn compute-coords []
   (->> (read-cols-and-rows "/home/we/workspace/data/salesDetails1.tsv"
                            :delimiter "\t")
        (transform-cols-and-rows {:x #(Double/parseDouble (:x %))
                                  :y #(Double/parseDouble (:y %))
-                                 :cityCode :cityCode
+                                 :cityCode (comp parse-int-or-nil
+                                                 :cityCode)
                                  :statAreaCode (comp
-                                                #(if (= % "null")
-                                                   nil
-                                                   %)
+                                                parse-int-or-nil
+                                                ;; #(if (= % "null")
+                                                ;;    nil
+                                                ;;    %)
                                                 :statAreaCode)})
        cols-and-rows-to-dataset
        ($group-by [:cityCode :statAreaCode])
@@ -358,7 +360,10 @@
               (conj (first place-and-data)
                     {:mean-x (mean ($ :x (second place-and-data)))
                      :mean-y (mean ($ :y (second place-and-data)))})))
-       to-dataset))
+       to-dataset
+       filter-all-nonnil
+       ($where {:mean-x {:$gt 0}
+                :mean-y {:$gt 0}})))
 
 
 (def get-coords
@@ -366,7 +371,7 @@
   (memoize
    (fn []
      (compute-and-save-or-load
-      compute-coords
+      (fn [_] (compute-coords))
       (fn [_] "/home/we/workspace/data/coords.csv")
       (fn [filename] (read-dataset filename
                                    :header true))
@@ -374,6 +379,21 @@
         (save object filename))
       nil
       :coords))))
+
+(defn write-coords-as-json
+  []
+  (let [coords (get-coords)
+        coords-with-desc (col-names
+                          ($ [:mean-x :mean-y :statAreaCode :cityCode :desc]
+                             (add-column
+                              :desc
+                              (map place-desc-of-row
+                                   (:rows coords))
+                              coords))
+                          [:x :y :statAreaCode :cityCode :desc])]
+    (spit "../client/interactive_map/coords.json"
+          (json/write-str
+           (:rows coords-with-desc)))))
 
 (comment
   (sdisplay 1
@@ -1549,6 +1569,7 @@
                                                                   :statAreaCode
                                                                   (comp (nil-to-val :other)
                                                                         parse-int-or-nil
+                                                                        :Kvutza
                                                                         :SmlEzorStatistiKtvtMegurimPUF)
                                                                   :origin (fn [row]
                                                                             (keyword
@@ -1610,10 +1631,7 @@
 
 
 (defn plot-coordinates []
- (let [coords ($where {:mean-x {:$gt 0}
-                       :mean-y {:$gt 0}}
-                      (filter-all-nonnil
-                       (get-coords)))
+ (let [coords (get-coords)
        min-x (apply min ($ :mean-x coords))
        min-y (apply min ($ :mean-y coords))
        max-x (apply max ($ :mean-x coords))

@@ -33,7 +33,7 @@ $.getJSON("d3data.json",
                   .attr("stroke", "grey");
 	      
               var tooltip = svg.append("text");
-		  
+	      
               svg.selectAll("circle")
                   .data(data.circles)
                   .enter()
