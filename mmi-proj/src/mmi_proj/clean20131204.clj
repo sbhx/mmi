@@ -39,7 +39,8 @@
   (:use hiccup.core)
   (:use clojure.stacktrace)
   (:use [clj-ml data clusterers])
-  (:require [clatrix.core :as clx])                                             (:require [clj-liblinear.core :as liblinear])
+  (:require [clatrix.core :as clx])
+  (:require [clj-liblinear.core :as liblinear])
   (:require [clojure.data.generators :as gen]))
 
 (apply require clojure.main/repl-requires)
@@ -67,6 +68,28 @@
   (if-let [yishuv-name (map-from-yishuv-code-to-name yishuv-code)]
     yishuv-name
     (str yishuv-code)))
+
+
+(def get-cities
+  (memoize 
+   (fn [cityCode]
+     (->> puf-filename
+          read-cols-and-rows
+          :rows
+          (map :SmlYishuvPUF)
+          distinct))))
+
+(def get-stat-areas-of-city
+  (memoize
+   (fn [cityCode]
+     (->> puf-filename
+          read-cols-and-rows
+          (filter-cols-and-rows #(= (str cityCode) (:SmlYishuvPUF %)))
+          :rows
+          (map :SmlEzorStatistiKtvtMegurimPUF)
+          distinct
+          (map (comp (nil-to-val :other)
+                     parse-int-or-nil))))))
 
 
 (def codebook-map (let [codebook-dataset (read-dataset
@@ -1543,66 +1566,45 @@
                            distinct))]
     (for [statAreaCode (filter identity
                                (get-stat-areas-of-city cityCode))]
-      (future (let [origin-by-period
-                    (->> cols-and-rows-of-this-city
-                         (filter-cols-and-rows #(= statAreaCode (:statAreaCode %)))
-                         (filter-cols-and-rows :period)
-                         (filter-cols-and-rows :origin)
-                         ($group-by [:period])
-                         (#(for [[k v] %]
-                             (into k
-                                   (dissoc (frequencies (to-seq ($ :origin v)))
-                                           nil))))
-                         (dataset (cons :period origin-types))
-                         ($order :period :asc))
-                    origin-by-period-with-compound-origins (conj-cols origin-by-period
-                                                                      (with-data origin-by-period
-                                                                        {:o (map +
-                                                                                 (map nil-to-zero ($ :1o))
-                                                                                 (map nil-to-zero ($ :2o))
-                                                                                 (map nil-to-zero ($ :3o))
-                                                                                 (map nil-to-zero ($ :5o)))
-                                                                         :a (map nil-to-zero ($ :3))
-                                                                         :m (map +
-                                                                                 (map nil-to-zero ($ :1))
-                                                                                 (map nil-to-zero ($ :2 )))}))
-                    desc (place-desc cityCode statAreaCode)]
-                (sdisplay desc
-                 (ChartPanel.
-                  (with-data origin-by-period-with-compound-origins
-                    (add-lines
-                     (add-lines
-                      (xy-plot :period :m
-                               :title ""
-                               :x-label ""
-                               :y-label "")
-                      :period :a)
-                     :period :o)))
-                 nil))))))
+      (let [origin-by-period
+            (->> cols-and-rows-of-this-city
+                 (filter-cols-and-rows #(= statAreaCode (:statAreaCode %)))
+                 (filter-cols-and-rows :period)
+                 (filter-cols-and-rows :origin)
+                 ($group-by [:period])
+                 (#(for [[k v] %]
+                     (into k
+                           (dissoc (frequencies (to-seq ($ :origin v)))
+                                   nil))))
+                 (dataset (cons :period origin-types))
+                 ($order :period :asc))
+            origin-by-period-with-compound-origins (conj-cols origin-by-period
+                                                              (with-data origin-by-period
+                                                                {:o (map +
+                                                                         (map nil-to-zero ($ :1o))
+                                                                         (map nil-to-zero ($ :2o))
+                                                                         (map nil-to-zero ($ :3o))
+                                                                         (map nil-to-zero ($ :5o)))
+                                                                 :a (map nil-to-zero ($ :3))
+                                                                 :m (map +
+                                                                         (map nil-to-zero ($ :1))
+                                                                         (map nil-to-zero ($ :2 )))}))
+            desc (place-desc cityCode statAreaCode)]
+        (println desc)
+        (future
+          (sdisplay desc
+                    (ChartPanel.
+                     (with-data origin-by-period-with-compound-origins
+                       (add-lines
+                        (add-lines
+                         (xy-plot :period :m
+                                  :title ""
+                                  :x-label ""
+                                  :y-label "")
+                         :period :a)
+                        :period :o)))
+                    nil))))))
 
-
-
-(def get-cities
-  (memoize 
-   (fn [cityCode]
-     (->> puf-filename
-          read-cols-and-rows
-          :rows
-          (map :SmlYishuvPUF)
-          distinct))))
-
-(def get-stat-areas-of-city
-  (memoize
-   (fn [cityCode]
-     (->> puf-filename
-          read-cols-and-rows
-          (filter-cols-and-rows #(= (str cityCode) (:SmlYishuvPUF %)))
-          :rows
-          (map :SmlEzorStatistiKtvtMegurimPUF)
-          distinct
-          (map (comp (nil-to-val :other)
-                     parse-int-or-nil
-                     :SmlEzorStatistiKtvtMegurimPUF))))))
 
 
 
