@@ -200,12 +200,18 @@
          :aliyah (comp (specific-val-to-1-others-to-0 1)
                        parse-int-or-nil
                        :OleShnot90MchvPUF)
-         :mizrach (comp (specific-vals-to-1-others-to-0 #{1 2})
-                         parse-int-or-nil
-                         :YabeshetMotzaByAvMchlkMchvPUF)
-         :ashkenaz (comp (specific-vals-to-1-others-to-0 #{3 5})
-                         parse-int-or-nil
-                         :YabeshetMotzaByAvMchlkMchvPUF)
+         :mizrach #(if (and (#{1 2}
+                             (parse-int-or-nil
+                              (:YabeshetMotzaByAvMchlkMchvPUF %)))
+                            (not (= "1"
+                                    (:OleShnot90MchvPUF %))))
+                     1 0)
+         :ashkenaz #(if (and (#{3 5}
+                              (parse-int-or-nil
+                               (:YabeshetMotzaByAvMchlkMchvPUF %)))
+                             (not (= "1"
+                                     (:OleShnot90MchvPUF %))))
+                      1 0)
          :KtvtLifney5ShanaMachozMchvPUF (comp parse-int-or-nil :KtvtLifney5ShanaMachozMchvPUF)
          :KtvtLifney5ShanaMetropolinPUF (comp parse-int-or-nil :KtvtLifney5ShanaMetropolinPUF)
          :cityCode (comp parse-int-or-nil :SmlYishuvPUF)
@@ -298,15 +304,15 @@
              filter-all-nonnil)
         data-matrix (to-matrix data-for-pca)
         centered-matrix (apply bind-columns
-                         (for [i (range (ncol data-matrix))]
-                          (clx/-
-                           ($ i data-matrix)
-                           (mean (seq ($ i data-matrix))))))
+                               (for [i (range (ncol data-matrix))]
+                                 (clx/-
+                                  ($ i data-matrix)
+                                  (mean (seq ($ i data-matrix))))))
         pca
         (principal-components centered-matrix)
         svd (clx/svd centered-matrix)
         svded-matrix (clx/* centered-matrix
-                          (:right svd))
+                            (:right svd))
         components
         (vec (for [i (range (ncol data-for-pca))]
                (apply hash-map (interleave
@@ -374,11 +380,26 @@
       (fn [_] (compute-coords))
       (fn [_] "/home/we/workspace/data/coords.csv")
       (fn [filename] (read-dataset filename
-                                   :header true))
+                                  :header true))
       (fn [filename object]
         (save object filename))
       nil
       :coords))))
+
+
+(defn place-desc
+  [cityCode statAreaCode]
+  (str (clojure.string/replace
+        (from-yishuv-code-to-name cityCode)
+        #"o" "")
+       "-"
+       statAreaCode))
+
+(defn place-desc-of-row
+  [row]
+  (place-desc (:cityCode row)
+              (:statAreaCode row)))
+
 
 (defn write-coords-as-json
   []
@@ -394,6 +415,8 @@
     (spit "../client/interactive_map/coords.json"
           (json/write-str
            (:rows coords-with-desc)))))
+
+
 
 (comment
   (sdisplay 1
@@ -422,19 +445,6 @@
                                                 :statAreaCode]))))
         (:rows place-dataset))))
 
-
-(defn place-desc
-  [cityCode statAreaCode]
-  (str (clojure.string/replace
-        (from-yishuv-code-to-name cityCode)
-        #"o" "")
-       "-"
-       statAreaCode))
-
-(defn place-desc-of-row
-  [row]
-  (place-desc (:cityCode row)
-              (:statAreaCode row)))
 
 
 (defn probability-to-color
@@ -466,10 +476,10 @@
      (compute-and-save-or-load
       compute-puf-with-components
       (fn [_] (str "/home/we/workspace/data/puf-with-components-"
-                   (hash _)
-                   ".csv"))
+                  (hash _)
+                  ".csv"))
       (fn [filename] (read-dataset filename
-                                   :header true))
+                                  :header true))
       (fn [filename object]
         (save object filename))
       components
@@ -492,16 +502,20 @@
                       (:rows subset)))
             (:condition-map input))]
        (into place-map
-             (for [[cond-name cond-rows] cond-rows-map
-                     col-name (:columns-to-summarize input)
-                   [summarizing-fn-name summarizing-fn] (:summarizing-fns-map input)]
-               [(concat-keywords col-name
-                                 summarizing-fn-name
-                                 :given
-                                 cond-name)
-                (summarizing-fn
-                 (map col-name cond-rows))]
-               ))))))
+             (concat
+              (for [[cond-name cond-rows] cond-rows-map]
+                [(concat-keywords :num
+                                  cond-name)
+                 (count cond-rows)])
+              (for [[cond-name cond-rows] cond-rows-map
+                    col-name (:columns-to-summarize input)
+                    [summarizing-fn-name summarizing-fn] (:summarizing-fns-map input)]
+                [(concat-keywords col-name
+                                  summarizing-fn-name
+                                  :given
+                                  cond-name)
+                 (summarizing-fn
+                  (map col-name cond-rows))])))))))
 
 (def get-measures-by-place
   (memoize
@@ -509,12 +523,12 @@
      (compute-and-save-or-load
       compute-measures-by-place
       (fn [input] (str "/home/we/workspace/data/measures-by-place-"
-                       (hash [(keys (:condition-map input))
-                              (:columns-to-summarize input)
-                              (keys (:summarizing-fns-map input))])
-                       ".csv"))
+                      (hash [(keys (:condition-map input))
+                             (:columns-to-summarize input)
+                             (keys (:summarizing-fns-map input))])
+                      ".csv"))
       (fn [filename] (read-dataset filename
-                                   :header true))
+                                  :header true))
       (fn [filename object]
         (save object filename))
       input
@@ -540,7 +554,7 @@
                                          :TzfifutDiurPUF-reg
                                          :NefashotMeshekBayitPUF-reg
                                          ]
-                  :summarizing-fns-map {:count count
+                  :summarizing-fns-map {:sum sum
                                         :mean (careful-mean 15)}}]
        (get-measures-by-place input)))))
 
@@ -553,6 +567,66 @@
 
 (comment
   (time (dim (get-standard-measures-by-coords))))
+
+
+
+(defn write-measures-as-json
+  []
+  (let [data (get-standard-measures-by-coords)
+        extended-data-rows
+        (for [row (:rows data)]
+          (into row
+                {:desc
+                 (place-desc-of-row row)
+                 :other-moved
+                 (-
+                  (:num-moved row)
+                  (:ashkenaz-sum-given-moved row)
+                  (:mizrach-sum-given-moved row)
+                  (:aliyah-sum-given-moved row))
+                 :other-stayed
+                 (-
+                  (:num-stayed row)
+                  (:ashkenaz-sum-given-stayed row)
+                  (:mizrach-sum-given-stayed row)
+                  (:aliyah-sum-given-stayed row))}))
+        extended-data-rows-with-plotting
+        (for [row extended-data-rows]
+          (into row
+                {:plotting
+                 {:domains [[0 (:num-stayed row)]
+                            [0 (:num-moved row)]]
+                  :lines [{:ys [(:num-stayed row)
+                             (:num-moved row)]
+                           :color "black"}
+                          {:ys [(:mizrach-sum-given-stayed row)
+                                (:mizrach-sum-given-moved row)]
+                           :color "brown"}
+                          {:ys [(:ashkenaz-sum-given-stayed row)
+                                (:ashkenaz-sum-given-moved row)]
+                           :color "white"}
+                          {:ys [(:aliyah-sum-given-stayed row)
+                                (:aliyah-sum-given-moved row)]
+                           :color "green"}]} }))]
+    (spit "../client/interactive_map/data.json"
+          (clojure.string/replace
+           (json/write-str
+            (map #(select-keys % [:mean-x :mean-y
+                                 :statAreaCode :cityCode
+                                 :num-moved
+                                 :aliyah-sum-given-moved
+                                 :mizrach-sum-given-moved
+                                 :ashkenaz-sum-given-moved
+                                 :num-stayed
+                                 :aliyah-sum-given-stayed
+                                 :mizrach-sum-given-stayed
+                                 :ashkenaz-sum-given-stayed
+                                 :desc
+                                 :plotting])
+                 extended-data-rows-with-plotting))
+           "},{"
+           "},\n{"))))
+
 
 
 (defn compute-sales-summary-by-place-map

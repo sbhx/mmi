@@ -1,0 +1,24 @@
+ 
+X nxm
+n samples, m covariates
+
+| incanter svd-decomp | clatrix svd |
+| S                   | values      |
+| U                   | left        |
+| V                   | right       |
+
+| incanter pca of x | incanter decomp-svd of (correlation x) |
+| std-dev           | (sqrt S)                               |
+| rotation          | V                                      |
+
+XtX/n = cor = Ut * S * V 
+
+X/sqrt(n) = At * D * B
+
+Bt * D * A * At * D * B = Ut * S * V
+
+Bt * D2 * B = Ut * S * V
+
+X/sqrt(n) * Bt * D^(-1) = At
+
+A * At = I
