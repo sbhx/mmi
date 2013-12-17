@@ -569,64 +569,113 @@
   (time (dim (get-standard-measures-by-coords))))
 
 
+(def chi-square-comparison
+  (let [chisq (org.apache.commons.math3.stat.inference.ChiSquareTest.)]
+    (fn [counts1 counts2]
+      (try (.chiSquareDataSetsComparison chisq
+                                         (long-array counts1)
+                                         (long-array counts2))
+           (catch Exception e 
+              (do 
+                (if e (do (
+                           ;;println ["chisq caught exception" e
+                           ;(.getMessage e)]
+                           
+                           ;;(print-stack-trace e) 
+                           Double/NaN)))))))))
+(comment
+  {:should-be-small (chi-square-comparison [9 33 23] [10 31 25])
+   :should-be-large (chi-square-comparison [9 33 23] [10 31 250])
+   :should-be-NaN(chi-square-comparison [9 0 23] [10 0 250])})
+
+
 
 (defn write-measures-as-json
   []
   (let [data (get-standard-measures-by-coords)
+        stayed-count-columns [:ashkenaz-sum-given-moved
+                              :mizrach-sum-given-moved
+                              :aliyah-sum-given-moved]
         extended-data-rows
         (for [row (:rows data)]
-          (into row
-                {:desc
-                 (place-desc-of-row row)
-                 :other-moved
-                 (-
-                  (:num-moved row)
-                  (:ashkenaz-sum-given-moved row)
-                  (:mizrach-sum-given-moved row)
-                  (:aliyah-sum-given-moved row))
-                 :other-stayed
-                 (-
-                  (:num-stayed row)
-                  (:ashkenaz-sum-given-stayed row)
-                  (:mizrach-sum-given-stayed row)
-                  (:aliyah-sum-given-stayed row))}))
-        extended-data-rows-with-plotting
-        (for [row extended-data-rows]
-          (into row
-                {:plotting
-                 {:domains [[0 (:num-stayed row)]
-                            [0 (:num-moved row)]]
-                  :lines [{:ys [(:num-stayed row)
-                             (:num-moved row)]
-                           :color "black"}
-                          {:ys [(:mizrach-sum-given-stayed row)
-                                (:mizrach-sum-given-moved row)]
-                           :color "brown"}
-                          {:ys [(:ashkenaz-sum-given-stayed row)
-                                (:ashkenaz-sum-given-moved row)]
-                           :color "white"}
-                          {:ys [(:aliyah-sum-given-stayed row)
-                                (:aliyah-sum-given-moved row)]
-                           :color "green"}]} }))]
-    (spit "../client/interactive_map/data.json"
+          (let [sums
+                {:stayed
+                 {:ashkenaz (:ashkenaz-sum-given-stayed row)
+                  :mizrach (:mizrach-sum-given-stayed row)
+                  :aliyah (:aliyah-sum-given-stayed row)}
+                 :moved
+                 {:ashkenaz (:ashkenaz-sum-given-moved row)
+                  :mizrach (:mizrach-sum-given-moved row)
+                  :aliyah (:aliyah-sum-given-moved row)}}
+                contingency-tables
+                {:stayed (into (:stayed sums)
+                               {:other (- (:num-stayed row)
+                                          (sum (vals (:stayed sums))))})
+                 :moved (into (:moved sums)
+                              {:other (- (:num-moved row)
+                                         (sum (vals (:moved sums))))})}
+                counts
+                {:stayed (into (:stayed contingency-tables)
+                               {:total (:num-stayed row)
+                                :0 0})
+                 :moved (into (:moved contingency-tables)
+                               {:total (:num-moved row)
+                                :0 0})}
+                groups (sort (keys (:stayed contingency-tables)))
+                chisq-val (let []
+                            (chi-square-comparison
+                             (for [g groups] ((:stayed contingency-tables) g))
+                             (for [g groups] ((:moved contingency-tables) g))))]
+            (into row
+                  {:desc
+                   (place-desc-of-row row)
+                   :chisq-val
+                   (if (Double/isNaN chisq-val)
+                     -1
+                     chisq-val)
+                   :plotting {
+                              :color
+                              (if (< 50 chisq-val)
+                                "#b0b"
+                                "#404")
+                              :domains
+                              [[0 (:num-stayed row)]
+                               [0 (:num-moved row)]]
+                              :lines
+                              (for [g (concat groups [:0 :total])]
+                                {:ys [((:stayed counts) g)
+                                      ((:moved counts) g)]
+                                 :color (case g
+                                          :mizrach "brown"
+                                          :ashkenaz "blue"
+                                          :aliyah "green"
+                                          :arab "orange"
+                                          "black")
+                                 :name g})}})))
+        filename "../client/interactive_map/data.json"]
+    (spit filename
           (clojure.string/replace
            (json/write-str
             (map #(select-keys % [:mean-x :mean-y
-                                 :statAreaCode :cityCode
-                                 :num-moved
-                                 :aliyah-sum-given-moved
-                                 :mizrach-sum-given-moved
-                                 :ashkenaz-sum-given-moved
-                                 :num-stayed
-                                 :aliyah-sum-given-stayed
-                                 :mizrach-sum-given-stayed
-                                 :ashkenaz-sum-given-stayed
-                                 :desc
-                                 :plotting])
-                 extended-data-rows-with-plotting))
+                                  :statAreaCode :cityCode
+                                  :num-moved
+                                  :aliyah-sum-given-moved
+                                  :mizrach-sum-given-moved
+                                  :ashkenaz-sum-given-moved
+                                  :num-stayed
+                                  :aliyah-sum-given-stayed
+                                  :mizrach-sum-given-stayed
+                                  :ashkenaz-sum-given-stayed
+                                  :desc
+                                  :chisq-val
+                                  :plotting])
+                 extended-data-rows))
            "},{"
-           "},\n{"))))
+           "},\n{"))
+    (println ["wrote" filename])))
 
+(comment
+  (write-measures-as-json))
 
 
 (defn compute-sales-summary-by-place-map

@@ -36,6 +36,7 @@
                  [org.clojure/data.generators "0.1.2"]
                  [svm-clj "0.1.3"]
                  [clatrix "0.3.0"]
+                 [org.apache.commons/commons-math3 "3.2"]
                  ]
   ;;:main mmi-proj.puf
   :jvm-opts ["-Xmx6g"] )

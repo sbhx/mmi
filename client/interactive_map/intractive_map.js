@@ -1,47 +1,3 @@
-<!-- original example taken from: http://bl.ocks.org/mbostock/899711 -->
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="initial-scale=1.0, user-scalable=no"/>
-    <script type="text/javascript" src="http://localhost:8080/skewer"></script>
-    <script type="text/javascript" src="https://github.com/skeeto/skewer-mode/blob/master/skewer-everything.user.js"></script>
-    <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=true&language=iw"></script>
-    <script type="text/javascript" src="../d3/d3.v3.min.js" charset="utf-8"></script>
-    <style type="text/css">
-      
-      html, body, #map {
-          width: 100%;
-          height: 80%;
-          margin: 0;
-          padding: 0; 
-     }
-      
-      .mysvg, .mysvg svg {
-          position: absolute;
-      }
-      
-      .mysvg svg {
-          width: 60px;
-          height: 20px;
-          padding-right: 100px;
-          font: 10px sans-serif;
-      }
-      
-      /* .mysvg circle { */
-      /*     fill: #936; */
-      /*     stroke: #936; */
-      /*     stroke-width: 1px; */
-      /* } */
-      
-    </style>
-  </head>
-  <body>
-    <div id="map"></div>
-    <div id="info"></div>
-
-    <script type="text/javascript">
-
-      
       // Create the Google Map…
       var map = new google.maps.Map(d3.select("#map").node(), {
           zoom: 11,
@@ -54,7 +10,7 @@
       .append("svg")
       .attr("width", 1200)
       .attr("height", 600);
-
+      
       var tooltip =
       info.append("text")
       .text("")
@@ -62,27 +18,22 @@
       .style("font-family", "Arial")
       .style("encoding", "UTF-8")
       .attr("x", 20)
-      .attr("y", 20);
+      .attr("y", 20)
+      .attr("fill", "#406");
 
       var canvas =
       info.append("svg")
       .attr("x", 20)
       .attr("y", 60)
-      .attr("width", 500)
+      .attr("width", 1200)
       .attr("height", 500);      
       
-      // canvas.append("line");
-      // canvas.append("line");
-      // canvas.append("line");
-      // canvas.append("line");
-      // canvas.append("line");
-      // canvas.append("line");
-      canvas.append("text");
-      canvas.append("text");
-      canvas.append("text");
-      canvas.append("text");
-      canvas.append("text");
-      canvas.append("text");
+      canvas.append("line");
+      canvas.append("line");
+      canvas.append("line");
+      canvas.append("line");
+      canvas.append("line");
+      canvas.append("line");
 
       var amounts =
       [canvas.append("text")
@@ -92,11 +43,12 @@
        .attr("x", canvas.attr("width")-120)
        .attr("y", 20)];
       
-      var updateReport = function(d) {
+      function updateReport(d) {
           title.text(
               //JSON.stringify(d.plotting)
               d.desc
           );
+              
           
           var p=d.plotting;
 
@@ -112,36 +64,15 @@
           yscale1 = d3.scale.linear()
               .domain(p.domains[1])
               .range([canvas.attr("height")-20, 20]);
-
-          var updateLine = function(l) {
-              return d3.select(this)
-                  .attr("x1", xscale(0))
-                  .attr("y1", yscale0(l.ys[0]))
-                  .attr("x2", xscale(1))
-                  .attr("y2", yscale1(l.ys[1]))
-                  .attr("stroke-width", 3)
-                  .attr("stroke", l.color);
-          };
           
           canvas.selectAll("line")
-              .data(p.lines)
-              .each(updateLine)
-                  .enter().append("line")
-              .each(updateLine);
-                  
-          var updateText = function(l) {
-              return d3.select(this)
-                  .attr("x", xscale(1)+60)
-                  .attr("y", function(l) {return yscale1(l.ys[1]);})
-                  .attr("fill", function(l) {return l.color;})
-                  .text(function(l) {return l.name;});
-          };
-
-          canvas.selectAll("text")
-              .data(p.lines)
-              .each(updateText)
-                  .enter().append("text")
-              .each(updateText);
+          .data(p.lines)
+              .attr("x1", xscale(0))
+              .attr("y1", function(l) {return yscale0(l.ys[0]);})
+              .attr("x2", xscale(1))
+              .attr("y2", function(l) {return yscale1(l.ys[1]);})
+              .attr("stroke-width", 6)
+              .attr("stroke", function(l) {return l.color;});
       }
 
       var title =
@@ -153,7 +84,7 @@
       .attr("x", canvas.attr("width")/2-20)
       .attr("y", 40)
       .attr("fill", "black");
-
+     
       // Load the station data. When the data comes back, create an overlay.
       d3.json("data.json", function(data) {
           
@@ -196,33 +127,25 @@
                   function transform(d) {
                       proj = projection.fromLatLngToDivPixel(
                           new google.maps.LatLng(d["mean-y"], d["mean-x"]));
-                      
                       return d3.select(this)
                           .style("left", (proj.x - padding) + "px")
                           .style("top", (proj.y - padding) + "px")
                           .style("opacity", 0.5)
-                          .attr("fill", d.plotting.color)
                           .on("mouseover", function() {
+                              tooltip.text(d.desc);
                               d3.select(this)
                                   .attr("r", 20)
                                   .attr("fill", "green");
-                              alert(JSON.stringify(d3
-                                                   .select(this)));
-                              tooltip
-                                  .text(d.desc)
-                                  .fill(d.plotting.color);
                           })
                           .on("mouseout", function() {
                               tooltip.text("");
                               d3.select(this)
                                   .attr("r", 10)
-                                  .attr("fill", 
-                                        d.plotting.color);
+                                  .attr("fill", "#505");
                           }).
                           on("click", function() {
                               updateReport(d);
-                          })
-                      ;
+                          });
                   }
 
                   
@@ -233,6 +156,3 @@
           overlay.setMap(map);
       });
       
-    </script>
-  </body>
-</html>
