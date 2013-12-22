@@ -20,8 +20,8 @@
 (def canvas (-> info
                 (.append "svg")
                 (.style "position" "absolute")
-                (.attr (clj->js {:width  600
-                                 :height 600
+                (.attr (clj->js {:width  900
+                                 :height 900
                                  :x 10
                                  :y 40}))))
 
@@ -40,8 +40,10 @@
 (def plot (-> canvas
                (.append "svg")
                 (.style "position" "absolute")
+                (.attr "height" 400)
+                (.attr "width" 500)
                 (.attr "x" 30)
-                (.attr "y" 60)))
+                (.attr "y" 100)))
 
 
 (defn show-info [d]
@@ -54,12 +56,12 @@
         yscale0 (-> (.-scale d3)
                    (.linear)
                    (.domain (aget (.-domains p) 0))
-                   (.range (clj->js [(- (.attr plot "width") 20)
+                   (.range (clj->js [(- (.attr plot "height") 20)
                                      20])))
         yscale1 (-> (.-scale d3)
                     (.linear)
                     (.domain (aget (.-domains p) 1))
-                    (.range (clj->js [(- (.attr plot "width") 20)
+                    (.range (clj->js [(- (.attr plot "height") 20)
                                       20])))
         update-line (fn [l]
                       (this-as this
@@ -71,10 +73,6 @@
                                    (.attr "y2" (yscale1 (aget (.-ys l) 1)))
                                    (.attr "stroke-width" 3)
                                    (.attr "stroke" (.-color l)))))]
-    (-> title
-        (.text "title"))
-    (-> tooltip
-        (.text "tooltip"))
     (-> plot
         (.selectAll "line")
         (.data (.-lines p))
@@ -94,7 +92,7 @@
 
 (let [mappy (-> L (.map "map") 
                 (.setView (clj->js [32 34.8]) 9))
-      geojsonMarkerOptions {:radius 4,
+      geojsonMarkerOptions {:radius 8,
                             :color "#000",
                             :fillColor "#965",
                             :weight 1,
@@ -106,13 +104,13 @@
       ;;                 [(.-plotting d)]))))
       gjPoints (clj->js
                 (for [d data]
-                  {:type "Feature"
-                   :properties {:name (.-desc d)
-                                :color (.-color (.-plotting d))}
-                   :geometry {:type "Point"
-                              :coordinates [(aget d "mean-x")
-                                            (aget d "mean-y")]}}))]
- 
+                  (let [p (.-plotting d)]
+                    {:type "Feature"
+                     :properties {:d d}
+                     :geometry {:type "Point"
+                                :coordinates [(aget d "mean-x")
+                                              (aget d "mean-y")]}})))]
+  
  (-> L
      (.geoJson gjPoints
                (clj->js
@@ -124,8 +122,29 @@
                                        (assoc geojsonMarkerOptions
                                          :fillColor 
                                          (.-color
-                                          (.-properties feature)))
-                                         ))))}))
+                                          (.-plotting
+                                           (.-d
+                                            (.-properties feature)))))))))
+                 :onEachFeature
+                 (fn [feature layer]
+                   (let [d (.-d (.-properties feature))
+                         p (.-plotting d)
+                         desc (.-desc d)
+                         color (.-color p)]
+                     (.on layer
+                          (clj->js
+                           {:mouseover (fn []
+                                         (-> tooltip
+                                             (.text desc)
+                                             (.attr "fill" color)))
+                            :mouseout (fn []
+                                        (-> tooltip
+                                            (.text "")))
+                            :click (fn []
+                                     (do (-> title
+                                             (.text desc)
+                                             (.attr "fill" color))
+                                         (show-info d)))}))))}))
      (.addTo mappy))
 
  (-> L (.tileLayer tile-url {
