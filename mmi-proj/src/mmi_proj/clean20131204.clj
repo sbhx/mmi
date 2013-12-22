@@ -611,7 +611,10 @@
 
 (defn compute-measures-for-json
   []
-  (let [data (get-standard-measures-by-coords)
+  (let [data (filter-cols-and-rows
+              (fn [row] (and (:mean-x row)
+                            (:mean-y row)))
+              (get-standard-measures-by-coords))
         extended-data-rows
         (for [row (:rows data)]
           (let [sums
@@ -715,9 +718,24 @@
                           :plotting])
          extended-data-rows)))
 
+(defn write-measures-as-cljs
+  []
+  (let [filename "../simple/src/cljs/data.cljs"]
+    (spit filename
+          (str
+           "(ns simple.data)\n"
+           "(def data '"
+           (with-out-str (binding [*print-length* nil
+                             *print-level* nil]
+                           (pprint (compute-measures-for-json)))
+             ")\n")))
+    (println ["wrote" filename])))
+
 (defn write-measures-as-json
   []
-  (let [filename "../client/interactive_map/data.json"]
+  (let [filename "../simple/src/cljs/data.json"
+        ;; "../client/interactive_map/data.json"
+        ]
     (spit filename
           (clojure.string/replace
            (json/write-str
@@ -725,6 +743,22 @@
            "},{"
            "},\n{"))
     (println ["wrote" filename])))
+
+
+(defn write-measures-as-js
+  []
+  (let [filename "../simple/public/out/data.js"]
+    (spit filename
+          (str
+           "var data = "
+           (clojure.string/replace
+            (json/write-str
+             (compute-measures-for-json))
+            "},{"
+            "},\n{")
+           ";"))
+    (println ["wrote" filename])))
+
 
 (comment
   (write-measures-as-json))
