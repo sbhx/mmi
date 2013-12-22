@@ -192,11 +192,17 @@
                        parse-int-or-nil
                        :DatZkPUF)
          :Christian (comp (specific-val-to-1-others-to-0 3)
-                       parse-int-or-nil
-                       :DatZkPUF)
+                          parse-int-or-nil
+                          :DatZkPUF)
          :Druze (comp (specific-val-to-1-others-to-0 5)
-                       parse-int-or-nil
-                       :DatZkPUF)
+                      parse-int-or-nil
+                      :DatZkPUF)
+         :Arab #(if (and (#{2 3 5}
+                          (parse-int-or-nil
+                           (:DatZkPUF %)))
+                         (not (= "1"
+                                 (:OleShnot90MchvPUF %))))
+                  1 0)
          :aliyah (comp (specific-val-to-1-others-to-0 1)
                        parse-int-or-nil
                        :OleShnot90MchvPUF)
@@ -212,6 +218,33 @@
                              (not (= "1"
                                      (:OleShnot90MchvPUF %))))
                       1 0)
+         :local #(if (and (#{9}
+                           (parse-int-or-nil
+                            (:YabeshetMotzaByAvMchlkMchvPUF %)))
+                          (not (= "1"
+                                  (:OleShnot90MchvPUF %))))
+                   1 0)
+         :income1 (comp
+                   #(if %
+                      (if (< % 7)
+                        1
+                        0))
+                   parse-int-or-nil
+                   :Hchns2008MbMchvPUF)
+         :income2 (comp
+                   #(if %
+                      (if (< 6 % 13)
+                        1
+                        0))
+                   parse-int-or-nil
+                   :Hchns2008MbMchvPUF)
+         :income3 (comp
+                   #(if %
+                      (if (< 12 %)
+                        1
+                        0))
+                   parse-int-or-nil
+                   :Hchns2008MbMchvPUF)
          :KtvtLifney5ShanaMachozMchvPUF (comp parse-int-or-nil :KtvtLifney5ShanaMachozMchvPUF)
          :KtvtLifney5ShanaMetropolinPUF (comp parse-int-or-nil :KtvtLifney5ShanaMetropolinPUF)
          :cityCode (comp parse-int-or-nil :SmlYishuvPUF)
@@ -455,6 +488,14 @@
                (* 256 256 prob256)))))
 
 
+(defn rgb-to-color
+  [r g b]
+  (format "#%06X"
+          (+ (* 65536 (int (* 256 r)))
+             (* 256 (int (* 256 g)))
+             (int (* 256 b)))))
+
+
 (defn compute-puf-with-components [components]
   (->> (read-cols-and-rows puf-filename)
        (transform-cols-and-rows (apply dissoc standard-column-fns
@@ -548,9 +589,8 @@
                   :columns-to-summarize [:comp0 :comp1 :comp2 :comp3
                                          :new-apt
                                          :Muslim :Jewish :Christian :Druze
-                                         :aliyah
-                                         :mizrach
-                                         :ashkenaz
+                                         :Arab :aliyah :mizrach :ashkenaz :local
+                                         :income1 :income2 :income3
                                          :TzfifutDiurPUF-reg
                                          :NefashotMeshekBayitPUF-reg
                                          ]
@@ -569,51 +609,43 @@
   (time (dim (get-standard-measures-by-coords))))
 
 
-(def chi-square-comparison
-  (let [chisq (org.apache.commons.math3.stat.inference.ChiSquareTest.)]
-    (fn [counts1 counts2]
-      (try (.chiSquareDataSetsComparison chisq
-                                         (long-array counts1)
-                                         (long-array counts2))
-           (catch Exception e 
-              (do 
-                (if e (do (
-                           ;;println ["chisq caught exception" e
-                           ;(.getMessage e)]
-                           
-                           ;;(print-stack-trace e) 
-                           Double/NaN)))))))))
-(comment
-  {:should-be-small (chi-square-comparison [9 33 23] [10 31 25])
-   :should-be-large (chi-square-comparison [9 33 23] [10 31 250])
-   :should-be-NaN(chi-square-comparison [9 0 23] [10 0 250])})
-
-
-
-(defn write-measures-as-json
+(defn compute-measures-for-json
   []
   (let [data (get-standard-measures-by-coords)
-        stayed-count-columns [:ashkenaz-sum-given-moved
-                              :mizrach-sum-given-moved
-                              :aliyah-sum-given-moved]
         extended-data-rows
         (for [row (:rows data)]
           (let [sums
                 {:stayed
-                 {:ashkenaz (:ashkenaz-sum-given-stayed row)
-                  :mizrach (:mizrach-sum-given-stayed row)
-                  :aliyah (:aliyah-sum-given-stayed row)}
+                 {:income1 (:income1-sum-given-stayed row)
+                  :income2 (:income2-sum-given-stayed row)
+                  :income3 (:income3-sum-given-stayed row)
+                  ;; :ashkenaz (:ashkenaz-sum-given-stayed row)
+                  ;; :mizrach (:mizrach-sum-given-stayed row)
+                  ;; :aliyah (:aliyah-sum-given-stayed row)
+                  ;; :Arab (:Arab-sum-given-stayed row)
+                  ;; :local (:local-sum-given-stayed row)
+                  }
                  :moved
-                 {:ashkenaz (:ashkenaz-sum-given-moved row)
-                  :mizrach (:mizrach-sum-given-moved row)
-                  :aliyah (:aliyah-sum-given-moved row)}}
+                 {:income1 (:income1-sum-given-moved row)
+                  :income2 (:income2-sum-given-moved row)
+                  :income3 (:income3-sum-given-moved row)
+                  ;; :ashkenaz (:ashkenaz-sum-given-moved row)
+                  ;; :mizrach (:mizrach-sum-given-moved row)
+                  ;; :aliyah (:aliyah-sum-given-moved row)
+                  ;; :Arab (:Arab-sum-given-moved row)
+                  ;; :local (:local-sum-given-moved row)
+                  }}
                 contingency-tables
                 {:stayed (into (:stayed sums)
-                               {:other (- (:num-stayed row)
-                                          (sum (vals (:stayed sums))))})
+                               {
+                                ;; :other (- (:num-stayed row)
+                                ;;           (sum (vals (:stayed sums))))
+                                })
                  :moved (into (:moved sums)
-                              {:other (- (:num-moved row)
-                                         (sum (vals (:moved sums))))})}
+                              {
+                               ;; :other (- (:num-moved row)
+                               ;;           (sum (vals (:moved sums))))
+                               })}
                 counts
                 {:stayed (into (:stayed contingency-tables)
                                {:total (:num-stayed row)
@@ -635,9 +667,19 @@
                      chisq-val)
                    :plotting {
                               :color
-                              (if (< 50 chisq-val)
-                                "#b0b"
-                                "#404")
+                              (rgb-to-color
+                               (:income1-mean-given-all row)
+                               (:income2-mean-given-all row)
+                               (:income3-mean-given-all row))
+                              ;; (if (< 10 chisq-val)
+                              ;;   "#0b0"
+                              ;;   "#404")
+                              ;; (probability-to-color ((round 1)
+                              ;;                        (/ (+ 1
+                              ;;                              (:mizrach-sum-given-moved row))
+                              ;;                           (+ 2
+                              ;;                              (:mizrach-sum-given-moved row)
+                              ;;                              (:ashkenaz-sum-given-moved row)))))
                               :domains
                               [[0 (:num-stayed row)]
                                [0 (:num-moved row)]]
@@ -646,30 +688,40 @@
                                 {:ys [((:stayed counts) g)
                                       ((:moved counts) g)]
                                  :color (case g
+                                          :income1 "red"
+                                          :income2 "green"
+                                          :income3 "blue"
                                           :mizrach "brown"
-                                          :ashkenaz "blue"
-                                          :aliyah "green"
-                                          :arab "orange"
+                                          :ashkenaz "white"
+                                          :aliyah "blue"
+                                          :Arab "orange"
+                                          :total "grey"
+                                          :0 "grey"
                                           "black")
                                  :name g})}})))
-        filename "../client/interactive_map/data.json"]
+        ]
+    (map #(select-keys % [:mean-x :mean-y
+                          :statAreaCode :cityCode
+                          :num-moved
+                          ;; :aliyah-sum-given-moved
+                          ;; :mizrach-sum-given-moved
+                          ;; :ashkenaz-sum-given-moved
+                          :num-stayed
+                          ;; :aliyah-sum-given-stayed
+                          ;; :mizrach-sum-given-stayed
+                          ;; :ashkenaz-sum-given-stayed
+                          :desc
+                          :chisq-val
+                          :plotting])
+         extended-data-rows)))
+
+(defn write-measures-as-json
+  []
+  (let [filename "../client/interactive_map/data.json"]
     (spit filename
           (clojure.string/replace
            (json/write-str
-            (map #(select-keys % [:mean-x :mean-y
-                                  :statAreaCode :cityCode
-                                  :num-moved
-                                  :aliyah-sum-given-moved
-                                  :mizrach-sum-given-moved
-                                  :ashkenaz-sum-given-moved
-                                  :num-stayed
-                                  :aliyah-sum-given-stayed
-                                  :mizrach-sum-given-stayed
-                                  :ashkenaz-sum-given-stayed
-                                  :desc
-                                  :chisq-val
-                                  :plotting])
-                 extended-data-rows))
+            (compute-measures-for-json))
            "},{"
            "},\n{"))
     (println ["wrote" filename])))
@@ -746,6 +798,9 @@
                                                 [{:year year} place :n])}))])))
         ]
     summary-by-place))
+
+
+
 
 
 (defn compute-sales-summary-by-place [years]
@@ -1792,3 +1847,16 @@
        :rows
        freqs-as-rows
        ))
+
+
+
+
+(comment
+  (->> puf-filename
+       read-cols-and-rows
+       :rows
+       (filter #(and (= (:SmlYishuvPUF %) "2650")
+                     (= (:SmlEzorStatistiKtvtMegurimPUF %) "13")))
+       count
+       ))
+

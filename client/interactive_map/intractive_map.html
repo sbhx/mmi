@@ -71,19 +71,6 @@
       .attr("width", 500)
       .attr("height", 500);      
       
-      // canvas.append("line");
-      // canvas.append("line");
-      // canvas.append("line");
-      // canvas.append("line");
-      // canvas.append("line");
-      // canvas.append("line");
-      canvas.append("text");
-      canvas.append("text");
-      canvas.append("text");
-      canvas.append("text");
-      canvas.append("text");
-      canvas.append("text");
-
       var amounts =
       [canvas.append("text")
        .attr("x", 100)
@@ -147,7 +134,7 @@
       var title =
       info.append("text")
       .text("")
-      .style("font-size", 16)
+      .style("font-size", 20)
       .style("font-family", "Arial")
       .style("encoding", "UTF-8")
       .attr("x", canvas.attr("width")/2-20)
@@ -174,14 +161,13 @@
                   
                   var marker = layer.selectAll("svg")
                       .data(data)
-                      .each(transform) // update existing markers
-                          .enter().append("svg:svg")
-                      .each(transform)
-                          .attr("class", "marker");
+                      .each(updateMarker) // update existing markers
+                          .enter().append("svg")
+                      .each(updateMarker);
                   
                   // Add a circle.
                   marker.append("svg:circle")
-                      .attr("r", 10)
+                      .attr("r", 8)
                       .attr("cx", padding)
                       .attr("cy", padding);
                   
@@ -193,31 +179,30 @@
                   //     //.text(function(d) { return d.desc; });
                   
                   
-                  function transform(d) {
+                  function updateMarker(d) {
                       proj = projection.fromLatLngToDivPixel(
                           new google.maps.LatLng(d["mean-y"], d["mean-x"]));
-                      
-                      return d3.select(this)
+                       
+                     return d3.select(this)
                           .style("left", (proj.x - padding) + "px")
                           .style("top", (proj.y - padding) + "px")
-                          .style("opacity", 0.5)
+                          .style("opacity", 0.8)
                           .attr("fill", d.plotting.color)
                           .on("mouseover", function() {
-                              d3.select(this)
-                                  .attr("r", 20)
-                                  .attr("fill", "green");
-                              alert(JSON.stringify(d3
-                                                   .select(this)));
+                              d3.select(this).select("circle")
+                                  .attr("r", 10)
+                              //.attr("fill", "green")
+                              ;
                               tooltip
                                   .text(d.desc)
                                   .fill(d.plotting.color);
                           })
                           .on("mouseout", function() {
                               tooltip.text("");
-                              d3.select(this)
-                                  .attr("r", 10)
-                                  .attr("fill", 
-                                        d.plotting.color);
+                              d3.select(this).select("circle")
+                                  .attr("r", 8)
+                                  //.attr("fill", d.plotting.color)
+;
                           }).
                           on("click", function() {
                               updateReport(d);

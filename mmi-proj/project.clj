@@ -37,6 +37,11 @@
                  [svm-clj "0.1.3"]
                  [clatrix "0.3.0"]
                  [org.apache.commons/commons-math3 "3.2"]
+                 [net.sf.jung/jung-api "2.0.1"]
+                 [net.sf.jung/jung-graph-impl "2.0.1"]
+                 [net.sf.jung/jung-algorithms "2.0.1"]
+                 [net.sf.jung/jung-algorithms "2.0.1"]
+                 [net.sf.jung/jung-visualization "2.0.1"]
                  ]
   ;;:main mmi-proj.puf
   :jvm-opts ["-Xmx6g"] )
