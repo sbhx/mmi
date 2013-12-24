@@ -657,10 +657,15 @@
                                {:total (:num-moved row)
                                 :0 0})}
                 groups (sort (keys (:stayed contingency-tables)))
-                chisq-val (let []
-                            (chi-square-comparison
-                             (for [g groups] ((:stayed contingency-tables) g))
-                             (for [g groups] ((:moved contingency-tables) g))))]
+                lr1r3r (try (log
+                           (/ (/ (:income1 (:moved contingency-tables))
+                                 (:income1 (:stayed contingency-tables)))
+                              (/ (:income3 (:moved contingency-tables))
+                                 (:income3 (:stayed contingency-tables)))))
+                          (catch Exception e Double/NaN))
+                chisq-val (chi-square-comparison
+                           (for [g groups] ((:stayed contingency-tables) g))
+                           (for [g groups] ((:moved contingency-tables) g)))]
             (into row
                   {:desc
                    (place-desc-of-row row)
@@ -668,12 +673,23 @@
                    (if (Double/isNaN chisq-val)
                      -1
                      chisq-val)
+                   :lr1r3r lr1r3r
                    :plotting {
+                              :lr1r3rstr (format "%04f" lr1r3r)
                               :color
-                              (rgb-to-color
-                               (:income1-mean-given-all row)
-                               (:income2-mean-given-all row)
-                               (:income3-mean-given-all row))
+                              ;; (rgb-to-color
+                              ;;  (:income1-mean-given-all row)
+                              ;;  (:income2-mean-given-all row)
+                              ;;  (:income3-mean-given-all row))
+                              (if (< chisq-val 8)
+                                "#F0F"
+                                (if (neg? lr1r3r)
+                                  "#FF0"
+                                  (if (pos? lr1r3r)
+                                    "#0FF"
+                                    "#F0F")))
+                              ;; (probability-to-color
+                              ;;  (java.lang.Math/tanh lr1r3r))
                               ;; (if (< 10 chisq-val)
                               ;;   "#0b0"
                               ;;   "#404")
@@ -715,8 +731,10 @@
                           ;; :ashkenaz-sum-given-stayed
                           :desc
                           :chisq-val
+                          :lr1r3r
                           :plotting])
          extended-data-rows)))
+
 
 (defn write-measures-as-cljs
   []
@@ -761,7 +779,52 @@
 
 
 (comment
-  (write-measures-as-json))
+  (write-measures-as-js))
+
+
+(comment
+  (->> (compute-measures-for-json)
+       (map (fn [row]
+              (let [lines (:lines (:plotting row))
+                    ys-map (into {}
+                                 (map (fn [line]
+                                        [(:name line)
+                                         (:ys line)])
+                                      lines))]
+                (into {:desc (place-desc-of-row row)
+                       :city ((comp from-yishuv-code-to-name
+                               (nil-to-val "other")
+                               (leave-only-nil-and-values-of-set
+                                #{3000
+                                  4000
+                                  5000
+                                  7000
+                                  70
+                                  6100
+                                  1031
+                                  2800}))
+                        (:cityCode row))}
+                      (#(try (hash-map
+                              :lr1 (log (/ (apply / (:income1 %))
+                                           (apply / (:total %))))
+                              :lr2 (log (/ (apply / (:income2 %))
+                                           (apply / (:total %))))
+                              :lr3 (log (/ (apply / (:income3 %))
+                                           (apply / (:total %))))
+                              :slr12 (log (/ ((:income1 %) 0)
+                                             ((:income2 %) 0)))
+                              :slr23 (log (/ ((:income2 %) 0)
+                                             ((:income3 %) 0)))
+                              :slr13 (log (/ ((:income1 %) 0)
+                                             ((:income3 %) 0))))
+                             (catch Exception e nil))
+                       ys-map)))))
+       (filter identity)
+       to-dataset
+       filter-all-nonnil-and-nonNaN-and-nonInf
+       ;($where {:place {:$ne ":other"}})
+       (#(save % "/home/we/projects/mmi/client/my-scatter/scatter.csv"))))
+
 
 
 (defn compute-sales-summary-by-place-map
