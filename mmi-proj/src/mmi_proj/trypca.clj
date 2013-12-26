@@ -76,5 +76,16 @@
     [;;(mmt rotation)
      ;;(mmt (clx/t rotated-data))
      (correlation rotated-data)
-     (correlation svded-data)
+     (clx/- centered-data
+            (clx/*
+             (:left svd)
+             (diag (:values svd))
+             (clx/t (:right svd))))
+     (clx/- svded-data
+            (clx/*
+             (:left svd)
+             (diag (:values svd))))
      ]))
+
+
+
