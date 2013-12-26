@@ -327,7 +327,7 @@
                          ])
 
 
-(defn compute-pca-components [_]
+(defn compute-components-coefficients [_]
   (let [data-for-pca
         (->> (read-cols-and-rows puf-filename
                                  :seq-transformer #(sample % :size 10000))
@@ -341,35 +341,37 @@
                                  (clx/-
                                   ($ i data-matrix)
                                   (mean (seq ($ i data-matrix))))))
-        pca
-        (principal-components centered-matrix)
         svd (clx/svd centered-matrix)
-        svded-matrix (clx/* centered-matrix
-                            (:right svd))
-        components
-        (vec (for [i (range (ncol data-for-pca))]
-               (apply hash-map (interleave
-                                (col-names data-for-pca)
-                                ($ i (:rotation pca))))))
-        data-for-pca-with-components
-        (-> data-for-pca
-            dataset-to-cols-and-rows
-            ((apply comp
-                    (for [i (range (count components))]
-                      #(add-linear-combination-column (components i)
-                                                      (keyword (str "comp" i))
-                                                      %))))
-            cols-and-rows-to-dataset)
+        components-coefficients (vec
+                                 (for [i (range (ncol data-for-pca))]
+                                   (apply hash-map (interleave
+                                                    (col-names data-for-pca)
+                                                    ($ i (:right svd))))))
+        ;; data-for-pca-with-components
+        ;; (-> data-for-pca
+        ;;     dataset-to-cols-and-rows
+        ;;     ((apply comp
+        ;;             (for [i (range (count components-coefficients))]
+        ;;               #(add-linear-combination-column
+        ;;                 (components-coefficients i)
+        ;;                 (keyword (str "comp" i))
+        ;;                 %))))
+        ;;     cols-and-rows-to-dataset)
+        ;; components-matrix (to-matrix
+        ;;                    ($ [:comp0 :comp1 :comp2 :comp3 :comp4 :comp5 :comp6]
+        ;;                       data-for-pca-with-components))
         ]
-    (with-data data-for-pca-with-components
-      (correlation ($ :comp0)
-                   ($ :comp1)))))
+    ;; (correlation components-matrix)
+    ;; (map #(sqrt (variance %))
+    ;;          (for [i (range (ncol components-matrix))]
+    ;;            ($ i components-matrix)))
+    components-coefficients))
 
-(def get-pca-components
+(def get-components-coefficients
   (memoize
    (fn []
      (compute-and-save-or-load
-      compute-pca-components
+      compute-components-coefficients
       (fn [_] "/home/we/workspace/data/pca/components.clj")
       load-file
       pr-str-to-file
