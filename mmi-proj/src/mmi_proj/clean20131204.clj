@@ -316,6 +316,25 @@
                   ])
 ;; NOTE: Avoiding home-related vars to avoid interaction with :new-apt.
 
+(defn add-components [components-coefficients cols-and-rows]
+  (->> cols-and-rows
+       ((apply comp
+               (for [i (range (count components-coefficients))]
+                 #(add-linear-combination-column (components-coefficients i)
+                                                 (keyword (str "comp" i))
+                                                 %))))
+       (remove-columns (keys (components-coefficients 0)))
+       cols-and-rows-to-dataset
+       ;;(add-coords-to-place-dataset)
+       filter-all-nonnil))
+
+
+(defn test-correlations-of-components [dat]
+  (correlation
+   (to-matrix
+    ($ [:comp0 :comp1 :comp2 :comp3 :comp4 :comp5 :comp6]
+       dat))))
+
 
 (def col-names-to-avoid [:Hchns2008BrutoSachirPUF-int
                          :MspSherutimPUF-reg
@@ -327,20 +346,52 @@
                          ])
 
 
+(defn center-matrix
+  [mat]
+  (apply bind-columns
+         (for [i (range (ncol mat))]
+           (clx/-
+            ($ i mat)
+            (mean (seq ($ i mat)))))))
+
+(defn center-dataset
+  [dat]
+  (-> dat
+      to-matrix
+      center-matrix
+      to-dataset
+      (col-names (col-names dat))))
+
+(defn compute-data-for-pca
+  [n-samples]
+  (->> (read-cols-and-rows puf-filename
+                           :seq-transformer #(sample % :size n-samples))
+       (transform-cols-and-rows
+        (select-keys standard-column-fns pca-columns))
+       cols-and-rows-to-dataset
+       filter-all-nonnil))
+
+(def get-data-for-pca
+  (memoize
+   (fn [n-samples]
+     (compute-and-save-or-load
+      compute-data-for-pca
+      (fn [n-samples] (str
+              "/home/we/workspace/data/data-for-pca-"
+              n-samples
+              ".csv"))
+      (fn [filename] (read-dataset filename
+                                  :header true))
+      (fn [filename object]
+        (save object filename))
+      n-samples
+      :data-for-pca))))
+
+
 (defn compute-components-coefficients [_]
-  (let [data-for-pca
-        (->> (read-cols-and-rows puf-filename
-                                 :seq-transformer #(sample % :size 10000))
-             (transform-cols-and-rows
-              (select-keys standard-column-fns pca-columns))
-             cols-and-rows-to-dataset
-             filter-all-nonnil)
+  (let [data-for-pca (get-data-for-pca 10000)
         data-matrix (to-matrix data-for-pca)
-        centered-matrix (apply bind-columns
-                               (for [i (range (ncol data-matrix))]
-                                 (clx/-
-                                  ($ i data-matrix)
-                                  (mean (seq ($ i data-matrix))))))
+        centered-matrix (center-matrix data-matrix)
         svd (clx/svd centered-matrix)
         components-coefficients (vec
                                  (for [i (range (ncol data-for-pca))]
@@ -365,6 +416,10 @@
     ;; (map #(sqrt (variance %))
     ;;          (for [i (range (ncol components-matrix))]
     ;;            ($ i components-matrix)))
+    (test-correlations-of-components
+                         (add-components
+                          components-coefficients
+                          (center-dataset (get-data-for-pca 10000))))
     components-coefficients))
 
 (def get-components-coefficients
@@ -498,19 +553,10 @@
              (int (* 256 b)))))
 
 
+
 (defn compute-puf-with-components [components]
   (->> (read-cols-and-rows puf-filename)
-       (transform-cols-and-rows (apply dissoc standard-column-fns
-                                       col-names-to-avoid))
-       ((apply comp
-               (for [i (range (count components))]
-                 #(add-linear-combination-column (components i)
-                                                 (keyword (str "comp" i))
-                                                 %))))
-       (remove-columns (keys (components 0)))
-       cols-and-rows-to-dataset
-       ;;(add-coords-to-place-dataset)
-       filter-all-nonnil))
+       add-components))
 
 
 (def get-puf-with-components
@@ -528,8 +574,11 @@
       components
       :puf-with-components))))
 
+
 (comment
-  (time (dim (get-puf-with-components (get-pca-components)))))
+  (time (dim (get-puf-with-components (get-components-coefficients))))
+  (test-correlations-of-components
+   (get-puf-with-components (get-components-coefficients))))
 
 
 (defn compute-measures-by-place
@@ -582,7 +631,7 @@
   (memoize
    (fn []
      (let [input {:dataset-with-places-fn (fn []
-                                            (get-puf-with-components (get-pca-components)))
+                                            (get-puf-with-components (get-components-coefficients)))
                   :condition-map {:all (fn [row] true)
                                   :stayed (fn [row]
                                             (= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))
