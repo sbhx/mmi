@@ -1,10 +1,9 @@
 (comment
   (do
-    (do
-      (require 'mmi-proj.clean20131204 :reload-all)
-      (in-ns 'mmi-proj.clean20131204))
-    (defn reload []
-      (require 'mmi-proj.clean20131204 :reload-all))))
+    (require 'mmi-proj.clean20131204 :reload-all)
+    (in-ns 'mmi-proj.clean20131204))
+  (defn reload []
+    (require 'mmi-proj.clean20131204 :reload-all)))
 
 (ns mmi-proj.clean20131204
   (:import java.lang.Math)
@@ -674,7 +673,7 @@
   (let [data (filter-cols-and-rows
               (fn [row] (and (:mean-x row)
                             (:mean-y row)))
-              (get-standard-measures-by-coords))
+              (get-join-by-coords))
         extended-data-rows
         (for [row (:rows data)]
           (let [sums
@@ -742,12 +741,12 @@
                               ;;  (:income2-mean-given-all row)
                               ;;  (:income3-mean-given-all row))
                               (if (< chisq-val 8)
-                                "#F0F"
+                                "#c0a"
                                 (if (neg? lr1r3r)
-                                  "#FF0"
+                                  "#ac0"
                                   (if (pos? lr1r3r)
-                                    "#0FF"
-                                    "#F0F")))
+                                    "#0ac"
+                                    "#c0a")))
                               ;; (probability-to-color
                               ;;  (java.lang.Math/tanh lr1r3r))
                               ;; (if (< 10 chisq-val)
@@ -779,7 +778,8 @@
                                           "black")
                                  :name g})}})))
         ]
-    (map #(select-keys % [:mean-x :mean-y
+    (map #(select-keys % [:polygon
+                          :mean-x :mean-y
                           :statAreaCode :cityCode
                           :num-moved
                           ;; :aliyah-sum-given-moved
@@ -1019,13 +1019,72 @@
       :sales-summary-by-coords))))
 
 
+
+(defn read-polygons-by-place
+  []
+  (to-dataset
+   (for [d (:content
+            (xml/parse (java.io.File.
+                        "/home/we/workspace/data/wsg84Lamas.gml")))
+         :when (= :gml:featureMember (:tag d))]
+     (let [d1 (first (:content d))
+           d2s (:content d1)
+           cityCode (->> d1
+                         :content
+                         (filter #(= :ogr:SEMEL_YISH
+                                     (:tag %)))
+                         only-one
+                         :content
+                         first
+                         parse-int-or-nil)
+           statAreaCode (->> d1
+                             :content
+                             (filter #(= :ogr:STAT08
+                                         (:tag %)))
+                             only-one
+                             :content
+                             first
+                             parse-int-or-nil)
+           polygon-str (->> d1
+                            :content
+                            (filter #(= :ogr:geometryProperty
+                                        (:tag %)))
+                            only-one
+                            :content first
+                            :content first
+                            :content first
+                            :content first
+                            :content first
+                            ((fn [s]
+                               (if (string? s) s))))
+           polygon (if polygon-str
+                     (vec
+                      (for [xy-str (clojure.string/split polygon-str #" ")]
+                        (vec
+                         (map parse-double-or-nil
+                              (clojure.string/split xy-str #","))))))]
+       {:cityCode cityCode
+        :statAreaCode statAreaCode
+        ;;:polygon-str polygon-str
+        :polygon polygon}))))
+
+(comment
+  (update-in (first (filter #(= 5000 (:cityCode %))
+                            (read-polygons)))
+             [:polygon] #(map vec %)))
+
+
 (defn compute-join-by-coords []
   (let [measures-by-place (get-standard-measures-by-place)
         summary-by-place (get-sales-summary-by-place (range 2006 2011))
+        polygons-by-place (read-polygons-by-place)
         join-by-place ($join [[:cityCode :statAreaCode]
                               [:cityCode :statAreaCode]]
-                             summary-by-place
-                             measures-by-place)
+                             polygons-by-place
+                             ($join [[:cityCode :statAreaCode]
+                                     [:cityCode :statAreaCode]]
+                                    summary-by-place
+                                    measures-by-place))
         join-by-coords (sort-colnames
                         (add-coords-to-place-dataset join-by-place))]
     join-by-coords))
@@ -2108,61 +2167,3 @@
        ))
 
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; (def xml-data
-;;   (let [input-xml (slurp "/home/we/workspace/data/wsg84Lamas.gml")]
-;;     (xml/parse input-xml
-;;      )))
-
-
-(defn read-polygons
-  []
-  (for [d (:content
-           (xml/parse (java.io.File.
-                       "/home/we/workspace/data/wsg84Lamas.gml")))
-        :when (= :gml:featureMember (:tag d))]
-    (let [d1 (first (:content d))
-          d2s (:content d1)
-          cityCode (->> d1
-                        :content
-                        (filter #(= :ogr:SEMEL_YISH
-                                    (:tag %)))
-                        only-one
-                        :content
-                        first
-                        parse-int-or-nil)
-          statAreaCode (->> d1
-                            :content
-                            (filter #(= :ogr:STAT08
-                                        (:tag %)))
-                            only-one
-                            :content
-                            first
-                            parse-int-or-nil)
-          polygon-str (->> d1
-                           :content
-                           (filter #(= :ogr:geometryProperty
-                                       (:tag %)))
-                           only-one
-                           :content first
-                           :content first
-                           :content first
-                           :content first
-                           :content first
-                           ((fn [s]
-                              (if (string? s) s))))
-          polygon (if polygon-str
-                    (for [xy-str (clojure.string/split polygon-str #" ")]
-                      (map parse-double-or-nil
-                           (clojure.string/split xy-str #","))))]
-      {:cityCode cityCode
-       :statAreaCode statAreaCode
-       :polygon-str polygon-str
-       :polygon polygon})))
-
-(comment
-  (update-in (first (filter #(= 5000 (:cityCode %))
-                            (read-polygons)))
-             [:polygon] #(map vec %)))
