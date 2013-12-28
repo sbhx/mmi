@@ -41,7 +41,10 @@
   (:use [clj-ml data clusterers])
   (:require [clatrix.core :as clx])
   (:require [clj-liblinear.core :as liblinear])
-  (:require [clojure.data.generators :as gen]))
+  (:require [clojure.data.generators :as gen])
+  ;(:require [clojure.data.xml :as dxml])
+  (:require [clojure.xml :as xml])
+  )
 
 (apply require clojure.main/repl-requires)
 
@@ -1402,14 +1405,22 @@
   (let [data (filter-all-nonnil-and-nonNaN
               (add-changes-to-join-by-coords))
         clusterer (make-clusterer :k-means
-                                  :number-clusters 3
-                                  :number-iterations 10000)
+                                  {:number-clusters 8
+                                   :number-iterations 10000})
         weka-dataset (incanter-dataset-to-weka-dataset :data
-                                                       ($ [:NefashotMeshekBayitPUF-reg-change
-                                                           :TzfifutDiurPUF-reg-change
-                                                           :new-apt-change
-                                                           :Muslim-change :Christian-change :Jewish-change
-                                                           :ashkenaz-change :mizrach-change :aliyah-change]
+                                                       ($ [:income1-mean-given-stayed
+                                                           :income2-mean-given-stayed
+                                                           :income3-mean-given-stayed
+                                                           ;; :stdprice-change-2007-2006
+                                                           ;; :stdprice-change-2008-2007
+                                                           ;; :stdprice-change-2009-2008
+                                                           ;; :stdprice-change-2010-2006
+                                                           ]
+                                                          ;; [:NefashotMeshekBayitPUF-reg-change
+                                                          ;;  :TzfifutDiurPUF-reg-change
+                                                          ;;  :new-apt-change
+                                                          ;;  :Muslim-change :Christian-change :Jewish-change
+                                                          ;;  :ashkenaz-change :mizrach-change :aliyah-change]
                                                           data))
         _ (clusterer-build clusterer
                            weka-dataset)
@@ -1417,12 +1428,16 @@
                     (clusterer-cluster clusterer
                                        weka-dataset))
         labelled-data (conj-cols data {:label labels})]
+    (println (frequencies labels))
     (spit "../client/data2.json"
           (json/write-str
            (general-gen-map-data labelled-data
                                  :label
                                  int
-                                 ["red" "green" "blue" "cyan" "magenta" "black" "white"])))))
+                                 ["#000" "#F00" "#0F0" "#00F" "#0FF" "#F0F" "#FF0" "#FFF"]
+                                 ;["red" "green" "blue" "cyan"
+                                 ;"magenta" "black" "white"]
+                                 )))))
 
 
 
@@ -2092,3 +2107,62 @@
        count
        ))
 
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; (def xml-data
+;;   (let [input-xml (slurp "/home/we/workspace/data/wsg84Lamas.gml")]
+;;     (xml/parse input-xml
+;;      )))
+
+
+(defn read-polygons
+  []
+  (for [d (:content
+           (xml/parse (java.io.File.
+                       "/home/we/workspace/data/wsg84Lamas.gml")))
+        :when (= :gml:featureMember (:tag d))]
+    (let [d1 (first (:content d))
+          d2s (:content d1)
+          cityCode (->> d1
+                        :content
+                        (filter #(= :ogr:SEMEL_YISH
+                                    (:tag %)))
+                        only-one
+                        :content
+                        first
+                        parse-int-or-nil)
+          statAreaCode (->> d1
+                            :content
+                            (filter #(= :ogr:STAT08
+                                        (:tag %)))
+                            only-one
+                            :content
+                            first
+                            parse-int-or-nil)
+          polygon-str (->> d1
+                           :content
+                           (filter #(= :ogr:geometryProperty
+                                       (:tag %)))
+                           only-one
+                           :content first
+                           :content first
+                           :content first
+                           :content first
+                           :content first
+                           ((fn [s]
+                              (if (string? s) s))))
+          polygon (if polygon-str
+                    (for [xy-str (clojure.string/split polygon-str #" ")]
+                      (map parse-double-or-nil
+                           (clojure.string/split xy-str #","))))]
+      {:cityCode cityCode
+       :statAreaCode statAreaCode
+       :polygon-str polygon-str
+       :polygon polygon})))
+
+(comment
+  (update-in (first (filter #(= 5000 (:cityCode %))
+                            (read-polygons)))
+             [:polygon] #(map vec %)))
