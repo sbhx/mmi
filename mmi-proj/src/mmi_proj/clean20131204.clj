@@ -1273,18 +1273,6 @@
 
 
 
-(defn incanter-dataset-to-weka-dataset
-  [name incanter-dataset]
-  (make-dataset name
-                (col-names incanter-dataset)
-                (map vals (:rows incanter-dataset))))
-
-
-(defn weka-dataset-to-incanter-dataset
-  [weka-dataset]
-  (dataset
-   (attribute-names weka-dataset)
-   (map instance-to-map weka-dataset)))
 
 
 
