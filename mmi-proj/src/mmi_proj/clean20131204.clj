@@ -490,6 +490,12 @@
   (place-desc (:cityCode row)
               (:statAreaCode row)))
 
+(defn place-desc1-of-row
+  [row]
+  (place-desc (:cityCode row)
+              (.substring (str (:statAreaCode row))
+                          0 1)))
+
 
 (defn write-coords-as-json
   []
@@ -1085,27 +1091,55 @@
   )
 
 (comment
-  (->> (get-join-by-coords)
-       ($ [:mean-x :mean-y :stdprice2006 :stdprice2007 :stdprice2008 :stdprice2009 :stdprice2010 :cityCode :statAreaCode])
+  (->>
+   (add-changes-to-join-by-coords)
+   col-names
+   (map name)
+   (filter #(re-matches #".*change.*" %))
+   (map keyword)
+   sort
+   pprint)
+  ;;
+  (->> (add-changes-to-join-by-coords)
+       ($ [:mean-x :mean-y :stdprice2006 :stdprice2007 :stdprice2008 :stdprice2009 :stdprice2010 :cityCode :statAreaCode
+           :Arab-mean-given-stayed
+           :aliyah-mean-given-stayed
+           :ashkenaz-mean-given-stayed
+           :mizrach-mean-given-stayed
+           :comp0-mean-given-stayed
+           :comp0-change
+           :new-apt-mean-given-all])
        filter-complete-rows
        ;; (filter-cols-and-rows
        ;;  #(let [c (:cityCode %)]
        ;;     (= (* 1000 (quot c 1000))
        ;;        c)))
-       (transform-cols-and-rows {:mean-x :mean-x
-                                 :mean-y :mean-y
-                                 :stdprice2006 :stdprice2006
-                                 :stdprice2008 :stdprice2008
-                                 :stdprice2010 :stdprice2010
-                                 :d1 #(- (:stdprice2008 %)
-                                         (:stdprice2006 %))
-                                 :d2 #(- (:stdprice2010 %)
-                                         (:stdprice2008 %))
-                                 :yishuv-name (comp from-yishuv-code-to-name
-                                                    (nil-to-val "other")
-                                                    (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800})
-                                                    :cityCode)
-                                 :desc place-desc-of-row})
+       (filter-cols-and-rows #(or (= 3000 (:cityCode %))
+                                  (= 5000 (:cityCode %))))
+       (transform-cols-and-rows (conj
+                                 (identity-map [;:Arab-mean-given-stayed
+                                                ;:aliyah-mean-given-stayed
+                                                ;:ashkenaz-mean-given-stayed
+                                                ;:mizrach-mean-given-stayed
+                                                :comp0-mean-given-stayed
+                                                :comp0-change
+                                                ;;:new-apt-mean-given-all
+                                                ;;:mean-x
+                                                :mean-y
+                                                :stdprice2006
+                                                ;;:stdprice2008
+                                                ;;:stdprice2010
+                                                ])
+                                 {:d1 #(- (:stdprice2008 %)
+                                          (:stdprice2006 %))
+                                  :d2 #(- (:stdprice2010 %)
+                                          (:stdprice2008 %))
+                                  :yishuv-name (comp from-yishuv-code-to-name
+                                                     (nil-to-val "other")
+                                                     (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800})
+                                                     :cityCode)
+                                  :desc1 place-desc1-of-row
+                                  :desc place-desc-of-row}))
        sort-column-names-of-cols-and-rows
        cols-and-rows-to-dataset
        (#(save % "../client/my-scatter/scatter.csv"))))
