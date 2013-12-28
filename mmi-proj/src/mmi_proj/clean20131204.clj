@@ -853,21 +853,30 @@
              (apply concat)
              (apply hash-map))
           ;;;;
-        unifprice-by-place-by-year
+        stdprice-by-place-by-year
         (fmap (fn [summary-by-place]
                 (apply hash-map
                        (apply concat
                               (map vector
                                    (keys summary-by-place)
-                                   (map double (uniformize (map :medppm
-                                                                (vals summary-by-place))))))))
+                                   (map double (standardize (map :medppm
+                                                                 (vals summary-by-place))))))))
               summary-by-place-by-year)
+        ;; unifprice-by-place-by-year
+        ;; (fmap (fn [summary-by-place]
+        ;;         (apply hash-map
+        ;;                (apply concat
+        ;;                       (map vector
+        ;;                            (keys summary-by-place)
+        ;;                            (map double (uniformize (map :medppm
+        ;;                                                         (vals summary-by-place))))))))
+        ;;       summary-by-place-by-year)
           ;;;;
         places
         (distinct (apply concat
-                         (map (fn [year-and-unifprice-by-place]
-                                (map first (second year-and-unifprice-by-place)))
-                              unifprice-by-place-by-year)))
+                         (map (fn [year-and-stdprice-by-place]
+                                (map first (second year-and-stdprice-by-place)))
+                              stdprice-by-place-by-year)))
           ;;;;
         summary-by-place
         (apply hash-map
@@ -875,8 +884,8 @@
                       (for [place places]
                         [place (into {}
                                      (for [year years]
-                                       {(keyword (str "unifprice" year))
-                                        (get-in unifprice-by-place-by-year
+                                       {(keyword (str "stdprice" year))
+                                        (get-in stdprice-by-place-by-year
                                                 [{:year year} place])
                                         (keyword (str "n" year))
                                         (get-in summary-by-place-by-year
@@ -979,42 +988,51 @@
                     (dataset
                      [(keyword (concat-with-delimiter
                                 "-"
-                                ["logit-unifprice-change"
+                                ["stdprice-change"
                                  to-year
                                  from-year]))]
-                     (map logits-difference
-                          ($ (keyword (str "unifprice" to-year)) join-by-coords)
-                          ($ (keyword (str "unifprice" from-year)) join-by-coords))))
+                     (map -
+                          ($ (keyword (str "stdprice" to-year)) join-by-coords)
+                          ($ (keyword (str "stdprice" from-year)) join-by-coords))))
                   (for [varname [:comp0 :comp1 :comp2 :comp3
                                  :NefashotMeshekBayitPUF-reg
                                  :TzfifutDiurPUF-reg
                                  :new-apt
                                  :Muslim :Christian :Jewish
-                                 :ashkenaz :mizrach :aliyah]]
+                                 :ashkenaz :mizrach :aliyah
+                                 :income1 :income2 :income3]]
                     (dataset
                      [(keyword (str
                                 (name varname) "-change"))]
                      (map -
-                          ($ (keyword (str (name varname) "-mean-given-all")) join-by-coords)
+                          ($ (keyword (str (name varname) "-mean-given-moved")) join-by-coords)
                           ($ (keyword (str (name varname) "-mean-given-stayed")) join-by-coords)))))))))
 
 
 (comment
   (let [data (->> (add-changes-to-join-by-coords)
                   ($ [:cityCode :statAreaCode
-                      :NefashotMeshekBayitPUF-reg-change
+                      ;;:NefashotMeshekBayitPUF-reg-change
                       ;;:TzfifutDiurPUF-reg-change
-                      :new-apt-change
+                      ;; :new-apt-change
                       ;; :Muslim-change :Christian-change 
                       ;;:Jewish-change
-                      :ashkenaz-change
+                      ;;:ashkenaz-change
                       ;;:mizrach-change
                       ;; :aliyah-change
-                      :comp0-mean-given-all
-                      :comp1-mean-given-all
+                      ;;:comp0-mean-given-all
+                      ;; :comp1-mean-given-all
+                      :income1-change
+                      :income2-change
+                      :income3-change
                       :comp0-change
-                      :comp1-change
-                      :mean-x
+                      ;; :comp1-change
+                      ;; :stdprice-change-2007-2006
+                      ;; :stdprice-change-2008-2007
+                      ;; :stdprice-change-2009-2008
+                      ;; :stdprice-change-2010-2009
+                      :stdprice-change-2010-2006
+                      ;;:mean-x
                       :mean-y
                       ]))
         data (add-column
@@ -1039,32 +1057,76 @@
         ;;           to-dataset)
         ]
     (save data "../client/my-scatter/scatter.csv")
-    (->> data
-         :rows
-         (map #(fmap signum %))
-         freqs-as-rows
-         (map #(into (:val %) {:-count (:count %)}))
-         (map #(into (sorted-map) %))
-         (filter #(<= 10 (:-count %)))
-         print-table
-         ))
-  (sdisplay 1
-            (s/vertical-panel
-             :items
-             (for [varname [:NefashotMeshekBayitPUF-reg-change
-                            :TzfifutDiurPUF-reg-change
-                            :new-apt-change
-                            :Muslim-change :Christian-change :Jewish-change
-                            :ashkenaz-change :mizrach-change :aliyah-change]]
-               (org.jfree.chart.ChartPanel.
-                (histogram (filter (complement zero?)
-                                   ($ varname
-                                      (add-changes-to-join-by-coords)))
-                           :title (name varname)
-                           :nbins 100))))
-            nil))
+    ;; (->> data
+    ;;      :rows
+    ;;      (map #(fmap signum %))
+    ;;      freqs-as-rows
+    ;;      (map #(into (:val %) {:-count (:count %)}))
+    ;;      (map #(into (sorted-map) %))
+    ;;      (filter #(<= 10 (:-count %)))
+    ;;      print-table
+    ;;      )
+    )
+  ;; (sdisplay 1
+  ;;           (s/vertical-panel
+  ;;            :items
+  ;;            (for [varname [:NefashotMeshekBayitPUF-reg-change
+  ;;                           :TzfifutDiurPUF-reg-change
+  ;;                           :new-apt-change
+  ;;                           :Muslim-change :Christian-change :Jewish-change
+  ;;                           :ashkenaz-change :mizrach-change :aliyah-change]]
+  ;;              (org.jfree.chart.ChartPanel.
+  ;;               (histogram (filter (complement zero?)
+  ;;                                  ($ varname
+  ;;                                     (add-changes-to-join-by-coords)))
+  ;;                          :title (name varname)
+  ;;                          :nbins 100))))
+  ;;           nil)
+  )
 
+(comment
+  (->> (get-join-by-coords)
+       ($ [:mean-x :mean-y :stdprice2006 :stdprice2007 :stdprice2008 :stdprice2009 :stdprice2010 :cityCode :statAreaCode])
+       filter-complete-rows
+       ;; (filter-cols-and-rows
+       ;;  #(let [c (:cityCode %)]
+       ;;     (= (* 1000 (quot c 1000))
+       ;;        c)))
+       (transform-cols-and-rows {:mean-x :mean-x
+                                 :mean-y :mean-y
+                                 :stdprice2006 :stdprice2006
+                                 :stdprice2008 :stdprice2008
+                                 :stdprice2010 :stdprice2010
+                                 :d1 #(- (:stdprice2008 %)
+                                         (:stdprice2006 %))
+                                 :d2 #(- (:stdprice2010 %)
+                                         (:stdprice2008 %))
+                                 :yishuv-name (comp from-yishuv-code-to-name
+                                                    (nil-to-val "other")
+                                                    (leave-only-nil-and-values-of-set #{3000 4000 5000 7000 70 6100 1031 2800})
+                                                    :cityCode)
+                                 :desc place-desc-of-row})
+       sort-column-names-of-cols-and-rows
+       cols-and-rows-to-dataset
+       (#(save % "../client/my-scatter/scatter.csv"))))
 
+(comment
+  (->> (get-join-by-coords)
+       ($ [:stdprice2006 :stdprice2007 :stdprice2008 :stdprice2009 :stdprice2010 :cityCode :statAreaCode])
+       filter-complete-rows
+       (filter-cols-and-rows
+        #(let [c (:cityCode %)]
+           (= (* 1000 (quot c 1000))
+              c)))
+       (transform-cols-and-rows {:d1 #(- (:stdprice2008 %)
+                                         (:stdprice2006 %))
+                                 :d2 #(- (:stdprice2010 %)
+                                         (:stdprice2008 %))
+                                 :cityCode :cityCode
+                                 :statAreaCode :statAreaCode})
+       cols-and-rows-to-dataset
+       (scatter-plot :d1 :d2 :group-by :cityCode :data)
+       view))
 
 
 (defn compute-sample
@@ -1159,7 +1221,7 @@
                                  :comp1-mean-given-stayed
                                  :comp2-mean-given-stayed
                                  :comp3-mean-given-stayed]
-               :response-column :unifprice2006
+               :response-column :stdprice2006
                :liblinear-algorithm :l2l2
                :liblinear-c 100000}
         model (train-liblinear-model input)
@@ -1190,7 +1252,7 @@
                                  :Muslim-change :Christian-change :Jewish-change
                                  :ashkenaz-change :mizrach-change :aliyah-change
                                  ]
-               :response-column :logit-unifprice-change-2010-2006
+               :response-column :logit-stdprice-change-2010-2006
                :liblinear-algorithm :l1l2_primal
                :liblinear-c 1}
         model (train-liblinear-model input)
@@ -1321,10 +1383,10 @@
 ;;               (get-sales-summary-by-place (range 2006 2011)))]
 ;;     (spit "../client/data1.json"
 ;;           (json/write-str
-;;            (general-gen-map-data data :unifprice2006 identity probability-to-color)))
+;;            (general-gen-map-data data :stdprice2006 identity probability-to-color)))
 ;;     (spit "../client/data2.json"
 ;;           (json/write-str
-;;            (general-gen-map-data data :unifprice2010 identity probability-to-color)))))
+;;            (general-gen-map-data data :stdprice2010 identity probability-to-color)))))
 
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1345,14 +1407,14 @@
 
 ;; (comment
 ;;   (let [data (filter-all-nonnil-and-nonNaN
-;;               ($ [:unifprice2006 :unifprice2007 :unifprice2008
-;;                   :unifprice2009 :unifprice2010
+;;               ($ [:stdprice2006 :stdprice2007 :stdprice2008
+;;                   :stdprice2009 :stdprice2010
 ;;                   :cityCode :statAreaCode]
 ;;                  (get-join-by-coords)))
 ;;         clusters (som-batch-train
 ;;                   (to-matrix
-;;                    ($ [:unifprice2006 :unifprice2007 :unifprice2008
-;;                        :unifprice2009 :unifprice2010]
+;;                    ($ [:stdprice2006 :stdprice2007 :stdprice2008
+;;                        :stdprice2009 :stdprice2010]
 ;;                       data)))
 ;;         num-clusters (count (:sets clusters))
 ;;         labels (sets-to-labels
@@ -1378,7 +1440,7 @@
 ;;                   ($ [
 ;;                       :prob-a-om :prob-a-os :prob-o-om :prob-o-os
 ;;                       :mean-ucomp1-om :mean-ucomp1-os
-;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+;;                       :stdprice2006 :stdprice2007 :stdprice2008 :stdprice2009 :stdprice2010
 ;;                       :n2006 :n2007 :n2008 :n2009 :n2010
 ;;                       :cityCode :statAreaCode
 ;;                       :mean-x :mean-y]
@@ -1388,10 +1450,10 @@
 ;;                   :prob-a-change
 ;;                   :prob-o-change
 ;;                   :ucomp1-change
-;;                   :unifprice-change-2007-2006
-;;                   :unifprice-change-2008-2007
-;;                   :unifprice-change-2009-2008
-;;                   :unifprice-change-2010-2009
+;;                   :stdprice-change-2007-2006
+;;                   :stdprice-change-2008-2007
+;;                   :stdprice-change-2009-2008
+;;                   :stdprice-change-2010-2009
 ;;                   :n-change-2007-2006
 ;;                   :n-change-2008-2007
 ;;                   :n-change-2009-2008
@@ -1408,18 +1470,18 @@
 ;;                               :ucomp1-change (map logits-difference
 ;;                                                   ($ :mean-ucomp1-om pre-data)
 ;;                                                   ($ :mean-ucomp1-os pre-data))
-;;                               :unifprice-change-2007-2006 (map logits-difference
-;;                                                                ($ :unifprice2007 pre-data)
-;;                                                                ($ :unifprice2006 pre-data))
-;;                               :unifprice-change-2008-2007 (map logits-difference
-;;                                                                ($ :unifprice2008 pre-data)
-;;                                                                ($ :unifprice2007 pre-data))
-;;                               :unifprice-change-2009-2008 (map logits-difference
-;;                                                                ($ :unifprice2009 pre-data)
-;;                                                                ($ :unifprice2008 pre-data))
-;;                               :unifprice-change-2010-2009 (map logits-difference
-;;                                                                ($ :unifprice2010 pre-data)
-;;                                                                ($ :unifprice2009 pre-data))
+;;                               :stdprice-change-2007-2006 (map logits-difference
+;;                                                                ($ :stdprice2007 pre-data)
+;;                                                                ($ :stdprice2006 pre-data))
+;;                               :stdprice-change-2008-2007 (map logits-difference
+;;                                                                ($ :stdprice2008 pre-data)
+;;                                                                ($ :stdprice2007 pre-data))
+;;                               :stdprice-change-2009-2008 (map logits-difference
+;;                                                                ($ :stdprice2009 pre-data)
+;;                                                                ($ :stdprice2008 pre-data))
+;;                               :stdprice-change-2010-2009 (map logits-difference
+;;                                                                ($ :stdprice2010 pre-data)
+;;                                                                ($ :stdprice2009 pre-data))
 ;;                               :n-change-2007-2006 (map log-ratio
 ;;                                                        ($ :n2007 pre-data)
 ;;                                                        ($ :n2006 pre-data))
@@ -1438,10 +1500,10 @@
 ;;                    ($ [:ucomp1-change
 ;;                        :prob-a-change
 ;;                        :prob-o-change
-;;                        :unifprice-change-2007-2006
-;;                        :unifprice-change-2008-2007
-;;                        :unifprice-change-2009-2008
-;;                        :unifprice-change-2010-2009
+;;                        :stdprice-change-2007-2006
+;;                        :stdprice-change-2008-2007
+;;                        :stdprice-change-2009-2008
+;;                        :stdprice-change-2010-2009
 ;;                        ;; :n-change-2007-2006
 ;;                        ;; :n-change-2008-2007
 ;;                        ;; :n-change-2009-2008
@@ -1467,7 +1529,7 @@
 ;;                   ($ [
 ;;                       :prob-a-om :prob-a-os :prob-o-om :prob-o-os
 ;;                       :mean-ucomp1-om :mean-ucomp1-os
-;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+;;                       :stdprice2006 :stdprice2007 :stdprice2008 :stdprice2009 :stdprice2010
 ;;                       :n2006 :n2007 :n2008 :n2009 :n2010
 ;;                       :cityCode :statAreaCode
 ;;                       :mean-x :mean-y]
@@ -1477,10 +1539,10 @@
 ;;                   :prob-a-change
 ;;                   :prob-o-change
 ;;                   :ucomp1-change
-;;                   :unifprice-change-2007-2006
-;;                   :unifprice-change-2008-2007
-;;                   :unifprice-change-2009-2008
-;;                   :unifprice-change-2010-2009
+;;                   :stdprice-change-2007-2006
+;;                   :stdprice-change-2008-2007
+;;                   :stdprice-change-2009-2008
+;;                   :stdprice-change-2010-2009
 ;;                   :n-change-2007-2006
 ;;                   :n-change-2008-2007
 ;;                   :n-change-2009-2008
@@ -1498,18 +1560,18 @@
 ;;                     :ucomp1-change (map logits-difference
 ;;                                         ($ :mean-ucomp1-om pre-data)
 ;;                                         ($ :mean-ucomp1-os pre-data))
-;;                     :unifprice-change-2007-2006 (map logits-difference
-;;                                                      ($ :unifprice2007 pre-data)
-;;                                                      ($ :unifprice2006 pre-data))
-;;                     :unifprice-change-2008-2007 (map logits-difference
-;;                                                      ($ :unifprice2008 pre-data)
-;;                                                      ($ :unifprice2007 pre-data))
-;;                     :unifprice-change-2009-2008 (map logits-difference
-;;                                                      ($ :unifprice2009 pre-data)
-;;                                                      ($ :unifprice2008 pre-data))
-;;                     :unifprice-change-2010-2009 (map logits-difference
-;;                                                      ($ :unifprice2010 pre-data)
-;;                                                      ($ :unifprice2009 pre-data))
+;;                     :stdprice-change-2007-2006 (map logits-difference
+;;                                                      ($ :stdprice2007 pre-data)
+;;                                                      ($ :stdprice2006 pre-data))
+;;                     :stdprice-change-2008-2007 (map logits-difference
+;;                                                      ($ :stdprice2008 pre-data)
+;;                                                      ($ :stdprice2007 pre-data))
+;;                     :stdprice-change-2009-2008 (map logits-difference
+;;                                                      ($ :stdprice2009 pre-data)
+;;                                                      ($ :stdprice2008 pre-data))
+;;                     :stdprice-change-2010-2009 (map logits-difference
+;;                                                      ($ :stdprice2010 pre-data)
+;;                                                      ($ :stdprice2009 pre-data))
 ;;                     :n-change-2007-2006 (map log-ratio
 ;;                                              ($ :n2007 pre-data)
 ;;                                              ($ :n2006 pre-data))
@@ -1530,10 +1592,10 @@
 ;;                                                        ($ [:ucomp1-change
 ;;                                                            ;; :prob-a-change
 ;;                                                            ;; :prob-o-change
-;;                                                            :unifprice-change-2007-2006
-;;                                                            :unifprice-change-2008-2007
-;;                                                            :unifprice-change-2009-2008
-;;                                                            :unifprice-change-2010-2009
+;;                                                            :stdprice-change-2007-2006
+;;                                                            :stdprice-change-2008-2007
+;;                                                            :stdprice-change-2009-2008
+;;                                                            :stdprice-change-2010-2009
 ;;                                                            ;; :n-change-2007-2006
 ;;                                                            ;; :n-change-2008-2007
 ;;                                                            ;; :n-change-2009-2008
@@ -1567,7 +1629,7 @@
 ;;                       :prob-a :prob-a-om :prob-a-os
 ;;                       :prob-o :prob-o-om :prob-o-os
 ;;                       :mean-ucomp1-om :mean-ucomp1-os
-;;                       :unifprice2006 :unifprice2007 :unifprice2008 :unifprice2009 :unifprice2010
+;;                       :stdprice2006 :stdprice2007 :stdprice2008 :stdprice2009 :stdprice2010
 ;;                       :n2006 :n2007 :n2008 :n2009 :n2010
 ;;                       :cityCode :statAreaCode
 ;;                       :mean-x :mean-y]
