@@ -1,22 +1,32 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <title>simple-bar</title>
+<link rel="stylesheet" href="demo.css">
+<link rel="stylesheet" href="menu.css">
+<link rel="stylesheet" href="menuitem.css">
+<link rel="stylesheet" href="menuseparator.css">
+<link rel="stylesheet" href="combobox.css">
 <link rel="stylesheet"
       href="http://cdn.leafletjs.com/leaflet-0.7.1/leaflet.css"/>
 <script src="http://cdn.leafletjs.com/leaflet-0.7.1/leaflet.js"></script>
 <script type="text/javascript" src="d3/d3.js"></script>
 <style>
-body {
+  body {
   font: 18px sans-serif;
-}
-.bar text {
+  }
+  .bar text {
   font-size: 24px;
-}
+  }
 </style>
 <body>
-<div id="map" style="width: 800px; height: 800px; float: left"></div>
-<div id="info" style="width: 500px; height: 500px"></div>
-<script type="text/javascript" src="out/data.js"></script>
-<script type="text/javascript" src="out/simple.js"></script>
+  <div id="c">cb.value = '<span id="v"></span>'</div>
+  <div id="colorkeycombo" class="use-arrow" style="width: 300px; height: 150px"></div>
+  <div id="map" style="width: 800px; height: 800px; float: left"></div>
+  <div id="info" style="width: 500px; height: 500px"></div>
+  <script type="text/javascript" src="out/data.js"></script>
+  <script type="text/javascript" src="out/simple.js"></script>
+  <script>
+    simple.vis.setup();
+  </script>
 </body>
 

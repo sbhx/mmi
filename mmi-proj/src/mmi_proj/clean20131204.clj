@@ -42,8 +42,7 @@
   (:require [clj-liblinear.core :as liblinear])
   (:require [clojure.data.generators :as gen])
   ;(:require [clojure.data.xml :as dxml])
-  (:require [clojure.xml :as xml])
-  )
+  (:require [clojure.xml :as xml]))
 
 (apply require clojure.main/repl-requires)
 
@@ -668,223 +667,6 @@
   (time (dim (get-standard-measures-by-coords))))
 
 
-(defn compute-measures-for-json
-  []
-  (let [data (filter-cols-and-rows
-              (fn [row] (and (:mean-x row)
-                            (:mean-y row)))
-              (get-join-by-coords))
-        extended-data-rows
-        (for [row (:rows data)]
-          (let [sums
-                {:stayed
-                 {:income1 (:income1-sum-given-stayed row)
-                  :income2 (:income2-sum-given-stayed row)
-                  :income3 (:income3-sum-given-stayed row)
-                  ;; :ashkenaz (:ashkenaz-sum-given-stayed row)
-                  ;; :mizrach (:mizrach-sum-given-stayed row)
-                  ;; :aliyah (:aliyah-sum-given-stayed row)
-                  ;; :Arab (:Arab-sum-given-stayed row)
-                  ;; :local (:local-sum-given-stayed row)
-                  }
-                 :moved
-                 {:income1 (:income1-sum-given-moved row)
-                  :income2 (:income2-sum-given-moved row)
-                  :income3 (:income3-sum-given-moved row)
-                  ;; :ashkenaz (:ashkenaz-sum-given-moved row)
-                  ;; :mizrach (:mizrach-sum-given-moved row)
-                  ;; :aliyah (:aliyah-sum-given-moved row)
-                  ;; :Arab (:Arab-sum-given-moved row)
-                  ;; :local (:local-sum-given-moved row)
-                  }}
-                contingency-tables
-                {:stayed (into (:stayed sums)
-                               {
-                                ;; :other (- (:num-stayed row)
-                                ;;           (sum (vals (:stayed sums))))
-                                })
-                 :moved (into (:moved sums)
-                              {
-                               ;; :other (- (:num-moved row)
-                               ;;           (sum (vals (:moved sums))))
-                               })}
-                counts
-                {:stayed (into (:stayed contingency-tables)
-                               {:total (:num-stayed row)
-                                :0 0})
-                 :moved (into (:moved contingency-tables)
-                               {:total (:num-moved row)
-                                :0 0})}
-                groups (sort (keys (:stayed contingency-tables)))
-                lr1r3r (try (log
-                           (/ (/ (:income1 (:moved contingency-tables))
-                                 (:income1 (:stayed contingency-tables)))
-                              (/ (:income3 (:moved contingency-tables))
-                                 (:income3 (:stayed contingency-tables)))))
-                          (catch Exception e Double/NaN))
-                chisq-val (chi-square-comparison
-                           (for [g groups] ((:stayed contingency-tables) g))
-                           (for [g groups] ((:moved contingency-tables) g)))]
-            (into row
-                  {:desc
-                   (place-desc-of-row row)
-                   :chisq-val
-                   (if (Double/isNaN chisq-val)
-                     -1
-                     chisq-val)
-                   :lr1r3r lr1r3r
-                   :plotting {
-                              :lr1r3rstr (format "%04f" lr1r3r)
-                              :color
-                              ;; (rgb-to-color
-                              ;;  (:income1-mean-given-all row)
-                              ;;  (:income2-mean-given-all row)
-                              ;;  (:income3-mean-given-all row))
-                              (if (< chisq-val 8)
-                                "#c0a"
-                                (if (neg? lr1r3r)
-                                  "#ac0"
-                                  (if (pos? lr1r3r)
-                                    "#0ac"
-                                    "#c0a")))
-                              ;; (probability-to-color
-                              ;;  (java.lang.Math/tanh lr1r3r))
-                              ;; (if (< 10 chisq-val)
-                              ;;   "#0b0"
-                              ;;   "#404")
-                              ;; (probability-to-color ((round 1)
-                              ;;                        (/ (+ 1
-                              ;;                              (:mizrach-sum-given-moved row))
-                              ;;                           (+ 2
-                              ;;                              (:mizrach-sum-given-moved row)
-                              ;;                              (:ashkenaz-sum-given-moved row)))))
-                              :domains
-                              [[0 (:num-stayed row)]
-                               [0 (:num-moved row)]]
-                              :lines
-                              (for [g (concat groups [:0 :total])]
-                                {:ys [((:stayed counts) g)
-                                      ((:moved counts) g)]
-                                 :color (case g
-                                          :income1 "red"
-                                          :income2 "green"
-                                          :income3 "blue"
-                                          :mizrach "brown"
-                                          :ashkenaz "white"
-                                          :aliyah "blue"
-                                          :Arab "orange"
-                                          :total "grey"
-                                          :0 "grey"
-                                          "black")
-                                 :name g})}})))
-        ]
-    (map #(select-keys % [:polygon
-                          :mean-x :mean-y
-                          :statAreaCode :cityCode
-                          :num-moved
-                          ;; :aliyah-sum-given-moved
-                          ;; :mizrach-sum-given-moved
-                          ;; :ashkenaz-sum-given-moved
-                          :num-stayed
-                          ;; :aliyah-sum-given-stayed
-                          ;; :mizrach-sum-given-stayed
-                          ;; :ashkenaz-sum-given-stayed
-                          :desc
-                          :chisq-val
-                          :lr1r3r
-                          :plotting])
-         extended-data-rows)))
-
-
-(defn write-measures-as-cljs
-  []
-  (let [filename "../simple/src/cljs/data.cljs"]
-    (spit filename
-          (str
-           "(ns simple.data)\n"
-           "(def data '"
-           (with-out-str (binding [*print-length* nil
-                             *print-level* nil]
-                           (pprint (compute-measures-for-json)))
-             ")\n")))
-    (println ["wrote" filename])))
-
-(defn write-measures-as-json
-  []
-  (let [filename "../simple/src/cljs/data.json"
-        ;; "../client/interactive_map/data.json"
-        ]
-    (spit filename
-          (clojure.string/replace
-           (json/write-str
-            (compute-measures-for-json))
-           "},{"
-           "},\n{"))
-    (println ["wrote" filename])))
-
-
-(defn write-measures-as-js
-  []
-  (let [filename "../simple/public/out/data.js"]
-    (spit filename
-          (str
-           "var data = "
-           (clojure.string/replace
-            (json/write-str
-             (compute-measures-for-json))
-            "},{"
-            "},\n{")
-           ";"))
-    (println ["wrote" filename])))
-
-
-(comment
-  (write-measures-as-js))
-
-
-(comment
-  (->> (compute-measures-for-json)
-       (map (fn [row]
-              (let [lines (:lines (:plotting row))
-                    ys-map (into {}
-                                 (map (fn [line]
-                                        [(:name line)
-                                         (:ys line)])
-                                      lines))]
-                (into {:desc (place-desc-of-row row)
-                       :city ((comp from-yishuv-code-to-name
-                               (nil-to-val "other")
-                               (leave-only-nil-and-values-of-set
-                                #{3000
-                                  4000
-                                  5000
-                                  7000
-                                  70
-                                  6100
-                                  1031
-                                  2800}))
-                        (:cityCode row))}
-                      (#(try (hash-map
-                              :lr1 (log (/ (apply / (:income1 %))
-                                           (apply / (:total %))))
-                              :lr2 (log (/ (apply / (:income2 %))
-                                           (apply / (:total %))))
-                              :lr3 (log (/ (apply / (:income3 %))
-                                           (apply / (:total %))))
-                              :slr12 (log (/ ((:income1 %) 0)
-                                             ((:income2 %) 0)))
-                              :slr23 (log (/ ((:income2 %) 0)
-                                             ((:income3 %) 0)))
-                              :slr13 (log (/ ((:income1 %) 0)
-                                             ((:income3 %) 0))))
-                             (catch Exception e nil))
-                       ys-map)))))
-       (filter identity)
-       to-dataset
-       filter-all-nonnil-and-nonNaN-and-nonInf
-       ;($where {:place {:$ne ":other"}})
-       (#(save % "/home/we/projects/mmi/client/my-scatter/scatter.csv"))))
-
 
 
 (defn compute-sales-summary-by-place-map
@@ -1286,6 +1068,46 @@
        cols-and-rows-to-dataset
        (scatter-plot :d1 :d2 :group-by :cityCode :data)
        view))
+
+
+(defn compute-data-with-clustering
+  []
+  (let [data (filter-all-nonnil-and-nonNaN
+              (add-changes-to-join-by-coords))
+        clusterer (make-clusterer :k-means
+                                  {:number-clusters 8
+                                   :number-iterations 10000})
+        weka-dataset (incanter-dataset-to-weka-dataset :data
+                                                       ($ [:income1-mean-given-stayed
+                                                           :income3-mean-given-stayed
+                                                           ;; :stdprice-change-2007-2006
+                                                           ;; :stdprice-change-2008-2007
+                                                           ;; :stdprice-change-2009-2008
+                                                           ;; :stdprice-change-2010-2006
+                                                           ]
+                                                          ;; [:NefashotMeshekBayitPUF-reg-change
+                                                          ;;  :TzfifutDiurPUF-reg-change
+                                                          ;;  :new-apt-change
+                                                          ;;  :Muslim-change :Christian-change :Jewish-change
+                                                          ;;  :ashkenaz-change :mizrach-change :aliyah-change]
+                                                          data))
+        _ (clusterer-build clusterer
+                           weka-dataset)
+        labels (map (comp parse-int-or-nil name :class instance-to-map)
+                    (clusterer-cluster clusterer
+                                       weka-dataset))
+        labelled-data (conj-cols data {:label labels})]
+    (println ["label frequencies" (frequencies labels)])
+    ;; (spit "../client/data2.json"
+    ;;       (json/write-str
+    ;;        (general-gen-map-data labelled-data
+    ;;                              :label
+    ;;                              int
+    ;;                              ["#000" "#F00" "#0F0" "#00F" "#0FF" "#F0F" "#FF0" "#FFF"]
+    ;;                              ;["red" "green" "blue" "cyan"
+    ;;                              ;"magenta" "black" "white"]
+    ;;                              )))
+    labelled-data))
 
 
 (defn compute-sample
@@ -2165,5 +1987,240 @@
                      (= (:SmlEzorStatistiKtvtMegurimPUF %) "13")))
        count
        ))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+
+
+
+(defn compute-measures-for-json
+  []
+  (let [data (filter-cols-and-rows
+              (fn [row] (and (:mean-x row)
+                            (:mean-y row)))
+              (compute-data-with-clustering))
+        extended-data-rows
+        (for [row (:rows data)]
+          (let [sums
+                {:stayed
+                 {:income1 (:income1-sum-given-stayed row)
+                  :income2 (:income2-sum-given-stayed row)
+                  :income3 (:income3-sum-given-stayed row)
+                  ;; :ashkenaz (:ashkenaz-sum-given-stayed row)
+                  ;; :mizrach (:mizrach-sum-given-stayed row)
+                  ;; :aliyah (:aliyah-sum-given-stayed row)
+                  ;; :Arab (:Arab-sum-given-stayed row)
+                  ;; :local (:local-sum-given-stayed row)
+                  }
+                 :moved
+                 {:income1 (:income1-sum-given-moved row)
+                  :income2 (:income2-sum-given-moved row)
+                  :income3 (:income3-sum-given-moved row)
+                  ;; :ashkenaz (:ashkenaz-sum-given-moved row)
+                  ;; :mizrach (:mizrach-sum-given-moved row)
+                  ;; :aliyah (:aliyah-sum-given-moved row)
+                  ;; :Arab (:Arab-sum-given-moved row)
+                  ;; :local (:local-sum-given-moved row)
+                  }}
+                contingency-tables
+                {:stayed (into (:stayed sums)
+                               {
+                                ;; :other (- (:num-stayed row)
+                                ;;           (sum (vals (:stayed sums))))
+                                })
+                 :moved (into (:moved sums)
+                              {
+                               ;; :other (- (:num-moved row)
+                               ;;           (sum (vals (:moved sums))))
+                               })}
+                counts
+                {:stayed (into (:stayed contingency-tables)
+                               {:total (:num-stayed row)
+                                :0 0})
+                 :moved (into (:moved contingency-tables)
+                               {:total (:num-moved row)
+                                :0 0})}
+                groups (sort (keys (:stayed contingency-tables)))
+                lr1r3r (try (log
+                           (/ (/ (:income1 (:moved contingency-tables))
+                                 (:income1 (:stayed contingency-tables)))
+                              (/ (:income3 (:moved contingency-tables))
+                                 (:income3 (:stayed contingency-tables)))))
+                          (catch Exception e Double/NaN))
+                chisq-val (chi-square-comparison
+                           (for [g groups] ((:stayed contingency-tables) g))
+                           (for [g groups] ((:moved contingency-tables) g)))]
+            (into row
+                  {:polygon (read-string (:polygon row))
+                   :desc
+                   (place-desc-of-row row)
+                   :chisq-val
+                   (if (Double/isNaN chisq-val)
+                     -1
+                     chisq-val)
+                   :lr1r3r lr1r3r
+                   :plotting {
+                              :lr1r3rstr (format "%04f" lr1r3r)
+                              :color
+                              {:label (["#000" "#900" "#090"
+                                        "#009" "#099" "#909"
+                                        "#990" "#999"]
+                                         (int (:label row)))
+                               :smooth (rgb-to-color
+                                        (:income1-mean-given-all row)
+                                        (:income2-mean-given-all row)
+                                        (:income3-mean-given-all row))}
+                              ;; (rgb-to-color
+                              ;;  (:income1-mean-given-all row)
+                              ;;  (:income2-mean-given-all row)
+                              ;;  (:income3-mean-given-all row))
+                              ;; (if (< chisq-val 8)
+                              ;;   "#c0a"
+                              ;;   (if (neg? lr1r3r)
+                              ;;     "#ac0"
+                              ;;     (if (pos? lr1r3r)
+                              ;;       "#0ac"
+                              ;;       "#c0a")))
+                              ;; (probability-to-color
+                              ;;  (java.lang.Math/tanh lr1r3r))
+                              ;; (if (< 10 chisq-val)
+                              ;;   "#0b0"
+                              ;;   "#404")
+                              ;; (probability-to-color ((round 1)
+                              ;;                        (/ (+ 1
+                              ;;                              (:mizrach-sum-given-moved row))
+                              ;;                           (+ 2
+                              ;;                              (:mizrach-sum-given-moved row)
+                              ;;                              (:ashkenaz-sum-given-moved row)))))
+                              :domains
+                              [[0 (:num-stayed row)]
+                               [0 (:num-moved row)]]
+                              :lines
+                              (for [g (concat groups [:0 :total])]
+                                {:ys [((:stayed counts) g)
+                                      ((:moved counts) g)]
+                                 :color (case g
+                                          :income1 "red"
+                                          :income2 "green"
+                                          :income3 "blue"
+                                          :mizrach "brown"
+                                          :ashkenaz "white"
+                                          :aliyah "blue"
+                                          :Arab "orange"
+                                          :total "grey"
+                                          :0 "grey"
+                                          "black")
+                                 :name g})}})))
+        ]
+    (map #(select-keys % [:polygon
+                          :mean-x :mean-y
+                          :statAreaCode :cityCode
+                          :num-moved
+                          ;; :aliyah-sum-given-moved
+                          ;; :mizrach-sum-given-moved
+                          ;; :ashkenaz-sum-given-moved
+                          :num-stayed
+                          ;; :aliyah-sum-given-stayed
+                          ;; :mizrach-sum-given-stayed
+                          ;; :ashkenaz-sum-given-stayed
+                          :desc
+                          :chisq-val
+                          :lr1r3r
+                          :plotting])
+         extended-data-rows)))
+
+
+(defn write-measures-as-cljs
+  []
+  (let [filename "../simple/src/cljs/data.cljs"]
+    (spit filename
+          (str
+           "(ns simple.data)\n"
+           "(def data '"
+           (with-out-str (binding [*print-length* nil
+                             *print-level* nil]
+                           (pprint (compute-measures-for-json)))
+             ")\n")))
+    (println ["wrote" filename])))
+
+(defn write-measures-as-json
+  []
+  (let [filename "../simple/src/cljs/data.json"
+        ;; "../client/interactive_map/data.json"
+        ]
+    (spit filename
+          (clojure.string/replace
+           (json/write-str
+            (compute-measures-for-json))
+           "},{"
+           "},\n{"))
+    (println ["wrote" filename])))
+
+
+(defn write-measures-as-js
+  []
+  (let [filename "../simple/public/out/data.js"]
+    (spit filename
+          (str
+           "var data = "
+           (clojure.string/replace
+            (json/write-str
+             (compute-measures-for-json))
+            "},{"
+            "},\n{")
+           ";"))
+    (println ["wrote" filename])))
+
+(comment
+  (write-measures-as-js))
+
+
+(comment
+  (->> (compute-measures-for-json)
+       (map (fn [row]
+              (let [lines (:lines (:plotting row))
+                    ys-map (into {}
+                                 (map (fn [line]
+                                        [(:name line)
+                                         (:ys line)])
+                                      lines))]
+                (into {:desc (place-desc-of-row row)
+                       :city ((comp from-yishuv-code-to-name
+                               (nil-to-val "other")
+                               (leave-only-nil-and-values-of-set
+                                #{3000
+                                  4000
+                                  5000
+                                  7000
+                                  70
+                                  6100
+                                  1031
+                                  2800}))
+                        (:cityCode row))}
+                      (#(try (hash-map
+                              :lr1 (log (/ (apply / (:income1 %))
+                                           (apply / (:total %))))
+                              :lr2 (log (/ (apply / (:income2 %))
+                                           (apply / (:total %))))
+                              :lr3 (log (/ (apply / (:income3 %))
+                                           (apply / (:total %))))
+                              :slr12 (log (/ ((:income1 %) 0)
+                                             ((:income2 %) 0)))
+                              :slr23 (log (/ ((:income2 %) 0)
+                                             ((:income3 %) 0)))
+                              :slr13 (log (/ ((:income1 %) 0)
+                                             ((:income3 %) 0))))
+                             (catch Exception e nil))
+                       ys-map)))))
+       (filter identity)
+       to-dataset
+       filter-all-nonnil-and-nonNaN-and-nonInf
+       ;($where {:place {:$ne ":other"}})
+       (#(save % "/home/we/projects/mmi/client/my-scatter/scatter.csv"))))
 
 
