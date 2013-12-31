@@ -177,7 +177,31 @@
                                                            (.-properties feature))))
                                                         colorkey)
                                            :weight 2
-                                           :fillOpacity 0.6}))}))
+                                           :fillOpacity 0.6}))
+                        :onEachFeature
+                        (fn [feature layer]
+                          (let [d (.-d (.-properties feature))
+                                p (.-plotting d)
+                                desc (str (.-desc d)
+                                          " "
+                                          (.-lr13str p))
+                                color (.-color p)]
+                            (.on layer
+                                 (clj->js
+                                  {:mouseover (fn []
+                                                (do (-> title
+                                                        (.text desc)
+                                                        (.attr "fill" color))
+                                                    (update-info d)))
+                                   :mouseout (fn []
+                                               (-> title
+                                                   (.text "")))
+                                   :click (fn []
+                                            (do
+                                              (-> title
+                                                  (.text desc)
+                                                  (.attr "fill" color))
+                                                (update-info d)))}))))}))
             (.addTo mappy))
         ;; (-> L
         ;;     (.geoJson gjPoints
