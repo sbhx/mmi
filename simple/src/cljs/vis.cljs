@@ -252,27 +252,26 @@
                                    (.openOn mappy)))))))))
 
 
-(defn ^:export setup []
-  (let [el (dom/get-element "colorkeycombo")
-        cb (goog.ui.ComboBox.)]
-    (doto cb
-      (.setUseDropdownArrow true)
-      (.setDefaultText "Select colorkey...")
-      (.addItem (goog.ui.ComboBoxItem. "label"))
-      (.addItem (goog.ui.ComboBoxItem. "smooth"))
-      (.render el))
-    (.listen goog.events
-             cb "change"
-             (fn [e]
-               (show-map
-                (.getValue (.-target e)))
-               ;; (. goog.dom (setTextContent (dom/get-element "v") (.. e target (getValue))))
-               )
-             ;; (fn [e] (do (js/alert (.. e target (getValue)))
-             ;;            ;; (show-map
-             ;;            ;;  (.. e target (getValue)))
-             ;;            ))
-             )))
+(let [el (dom/get-element "colorkeycombo")
+      cb (goog.ui.ComboBox.)]
+  (doto cb
+    (.setUseDropdownArrow true)
+    (.setDefaultText "Select colorkey...")
+    (.addItem (goog.ui.ComboBoxItem. "label"))
+    (.addItem (goog.ui.ComboBoxItem. "smooth"))
+    (.render el))
+  (.listen goog.events
+           cb "change"
+           (fn [e]
+             (show-map
+              (.getValue (.-target e)))
+             ;; (. goog.dom (setTextContent (dom/get-element "v") (.. e target (getValue))))
+             )
+           ;; (fn [e] (do (js/alert (.. e target (getValue)))
+           ;;            ;; (show-map
+           ;;            ;;  (.. e target (getValue)))
+           ;;            ))
+           ))
 
 ;(show-map "label")
 
