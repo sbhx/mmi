@@ -137,6 +137,7 @@
                            :OleShnot90MchvPUF
                            :RchvPUF
                            :RovaKtvtMegurimPUF
+                           :ShanaKnisaYishuvPUF
                            :SmlAnafKalkaliPUF
                            :SmlEzorStatistiKtvtMegurimPUF
                            :SmlMishlachYadPUF
@@ -246,6 +247,37 @@
                         0))
                    parse-int-or-nil
                    :Hchns2008MbMchvPUF)
+         :edu012 #(if (#{0 1 2}
+                      (parse-int-or-nil
+                       (:TeudatLimudZkPUF %)))
+                   1
+                   0)
+         :edu34 #(if (#{3 4}
+                      (parse-int-or-nil
+                       (:TeudatLimudZkPUF %)))
+                   1
+                   0)
+         :edu567 #(if (#{5 6 7}
+                       (parse-int-or-nil
+                        (:TeudatLimudZkPUF %)))
+                    1
+                    0)
+         :occ01 #(if (#{0 1}
+                      (parse-int-or-nil
+                       (:SmlMishlachYadPUF %)))
+                   1
+                   0)
+         :occ2 #(if (#{2}
+                     (parse-int-or-nil
+                      (:SmlMishlachYadPUF %)))
+                  1
+                  0)          
+         :occ3456 #(if (#{3 4 5 6}
+                         (parse-int-or-nil
+                          (:SmlMishlachYadPUF %)))
+                      1
+                      0)
+         :period (comp parse-int-or-nil :ShanaKnisaYishuvPUF)
          :KtvtLifney5ShanaMachozMchvPUF (comp parse-int-or-nil :KtvtLifney5ShanaMachozMchvPUF)
          :KtvtLifney5ShanaMetropolinPUF (comp parse-int-or-nil :KtvtLifney5ShanaMetropolinPUF)
          :cityCode (comp parse-int-or-nil :SmlYishuvPUF)
@@ -563,7 +595,8 @@
 
 (defn compute-puf-with-components [components]
   (->> (read-cols-and-rows puf-filename)
-       add-components))
+       (transform-cols-and-rows standard-column-fns)
+       (add-components components)))
 
 
 (def get-puf-with-components
@@ -587,34 +620,39 @@
   (test-correlations-of-components
    (get-puf-with-components (get-components-coefficients))))
 
-
 (defn compute-measures-by-place
   [input]
   (to-dataset
    (for [[place-map subset] ($group-by
                              [:cityCode :statAreaCode]
                              ((:dataset-with-places-fn input)))]
-     (let [cond-rows-map
-           (fmap
-            (fn [row-condition]
-              (filter row-condition
-                      (:rows subset)))
-            (:condition-map input))]
-       (into place-map
-             (concat
-              (for [[cond-name cond-rows] cond-rows-map]
-                [(concat-keywords :num
-                                  cond-name)
-                 (count cond-rows)])
-              (for [[cond-name cond-rows] cond-rows-map
-                    col-name (:columns-to-summarize input)
-                    [summarizing-fn-name summarizing-fn] (:summarizing-fns-map input)]
-                [(concat-keywords col-name
-                                  summarizing-fn-name
-                                  :given
-                                  cond-name)
-                 (summarizing-fn
-                  (map col-name cond-rows))])))))))
+     (try
+       (let [cond-rows-map
+             (fmap
+              (fn [row-condition]
+                (filter row-condition
+                        (:rows subset)))
+              (:condition-map input))]
+         (into place-map
+               (concat
+                (for [[cond-name cond-rows] cond-rows-map]
+                  [(concat-keywords :num
+                                    cond-name)
+                   (count cond-rows)])
+                (for [[cond-name cond-rows] cond-rows-map
+                      col-name (:columns-to-summarize input)
+                      [summarizing-fn-name summarizing-fn] (:summarizing-fns-map input)]
+                  [(concat-keywords col-name
+                                    summarizing-fn-name
+                                    :given
+                                    cond-name)
+                   (try (summarizing-fn
+                         (map col-name cond-rows))
+                        (catch Exception e
+                          nil))]))))
+       (catch Exception e
+         (do (println place-map)
+             nil))))))
 
 (def get-measures-by-place
   (memoize
@@ -634,26 +672,58 @@
       :measures-by-place))))
 
 
+
+(def period-descs
+  {0 "birth-";"ביישוב מלידה"
+   1 "-1947"
+   2 "1948-1954"
+   3 "1955-1964"
+   4 "1965-1974"
+   5 "1975-1984"
+   6 "1985-1989"
+   7 "1990-1994"
+   8 "1995-1999"
+   9 "2000-2004"
+   10 "2005-"})
+
 (def get-standard-measures-by-place
   (memoize
    (fn []
      (let [input {:dataset-with-places-fn (fn []
-                                            (get-puf-with-components (get-components-coefficients)))
-                  :condition-map {:all (fn [row] true)
-                                  :stayed (fn [row]
-                                            (= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))
-                                  :moved (fn [row]
-                                           (not= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))}
-                  :columns-to-summarize [:comp0 :comp1 :comp2 :comp3
+                                            (->> (read-cols-and-rows puf-filename)
+                                                (transform-cols-and-rows (apply dissoc
+                                                                                standard-column-fns
+                                                                                pca-columns))
+                                                ;; (filter-cols-and-rows
+                                                ;;  (fn [row] (and (:cityCode row)
+                                                ;;                (:statAreaCode row))))
+                                                (cols-and-rows-to-dataset)
+                                                (filter-all-nonnil)
+                                                ))
+                  :condition-map (into {:all (fn [row] true)
+                                        :stayed (fn [row]
+                                                  (= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))
+                                        :moved (fn [row]
+                                                 (not= 1 (:KtvtLifney5ShanaMachozMchvPUF row)))}
+                                       []
+                                       ;; (for [p (range 1 11)]
+                                       ;;   {(keyword (period-descs p))
+                                       ;;    (fn [row]
+                                       ;;      (= p (:period row)))})
+                                       )
+                  :columns-to-summarize [;:comp0 :comp1 :comp2 :comp3
                                          :new-apt
                                          :Muslim :Jewish :Christian :Druze
                                          :Arab :aliyah :mizrach :ashkenaz :local
                                          :income1 :income2 :income3
+                                         :edu012 :edu34 :edu567
+                                         :occ01 :occ2 :occ3456
                                          :TzfifutDiurPUF-reg
                                          :NefashotMeshekBayitPUF-reg
                                          ]
                   :summarizing-fns-map {:sum sum
-                                        :mean (careful-mean 15)}}]
+                                        :mean mean;(careful-mean 15)
+                                        }}]
        (get-measures-by-place input)))))
 
 
@@ -664,7 +734,17 @@
       (get-standard-measures-by-place)))))
 
 (comment
-  (time (dim (get-standard-measures-by-coords))))
+  (time (dim (get-standard-measures-by-coords)))
+  (view (let [d ($where  {:cityCode {:$in #{4000}}} (get-standard-measures-by-place))]
+                                 (add-points
+                                  (scatter-plot :income1-mean-given-stayed
+                                                :income3-mean-given-stayed
+                                                :data d
+                                                :group-by :cityCode)
+                                  ($ :income1-mean-given-moved d)
+                                  ($ :income3-mean-given-moved d)))))
+
+
 
 
 
@@ -804,51 +884,54 @@
 
 (defn read-polygons-by-place
   []
-  (to-dataset
-   (for [d (:content
-            (xml/parse (java.io.File.
-                        "/home/we/workspace/data/wsg84Lamas.gml")))
-         :when (= :gml:featureMember (:tag d))]
-     (let [d1 (first (:content d))
-           d2s (:content d1)
-           cityCode (->> d1
-                         :content
-                         (filter #(= :ogr:SEMEL_YISH
-                                     (:tag %)))
-                         only-one
-                         :content
-                         first
-                         parse-int-or-nil)
-           statAreaCode (->> d1
-                             :content
-                             (filter #(= :ogr:STAT08
-                                         (:tag %)))
-                             only-one
-                             :content
-                             first
-                             parse-int-or-nil)
-           polygon-str (->> d1
-                            :content
-                            (filter #(= :ogr:geometryProperty
-                                        (:tag %)))
-                            only-one
-                            :content first
-                            :content first
-                            :content first
-                            :content first
-                            :content first
-                            ((fn [s]
-                               (if (string? s) s))))
-           polygon (if polygon-str
-                     (vec
-                      (for [xy-str (clojure.string/split polygon-str #" ")]
-                        (vec
-                         (map parse-double-or-nil
-                              (clojure.string/split xy-str #","))))))]
-       {:cityCode cityCode
-        :statAreaCode statAreaCode
-        ;;:polygon-str polygon-str
-        :polygon polygon}))))
+  (binding [*print-length* nil
+            *print-level* nil]
+    (to-dataset
+     (for [d (:content
+              (xml/parse (java.io.File.
+                          "/home/we/workspace/data/wsg84Lamas.gml")))
+           :when (= :gml:featureMember (:tag d))]
+       (let [d1 (first (:content d))
+             d2s (:content d1)
+             cityCode (->> d1
+                           :content
+                           (filter #(= :ogr:SEMEL_YISH
+                                       (:tag %)))
+                           only-one
+                           :content
+                           first
+                           parse-int-or-nil)
+             statAreaCode (->> d1
+                               :content
+                               (filter #(= :ogr:STAT08
+                                           (:tag %)))
+                               only-one
+                               :content
+                               first
+                               parse-int-or-nil)
+             polygon-str (->> d1
+                              :content
+                              (filter #(= :ogr:geometryProperty
+                                          (:tag %)))
+                              only-one
+                              :content first
+                              :content first
+                              :content first
+                              :content first
+                              :content first
+                              ((fn [s]
+                                 (if (string? s) s))))]
+         {:cityCode cityCode
+          :statAreaCode statAreaCode
+          :polygon-str polygon-str})))))
+
+(defn read-polygon-from-str [polygon-str]
+  (if polygon-str
+    (vec
+     (for [xy-str (clojure.string/split polygon-str #" ")]
+       (vec
+        (map parse-double-or-nil
+             (clojure.string/split xy-str #",")))))))
 
 (comment
   (update-in (first (filter #(= 5000 (:cityCode %))
@@ -857,19 +940,22 @@
 
 
 (defn compute-join-by-coords []
-  (let [measures-by-place (get-standard-measures-by-place)
-        summary-by-place (get-sales-summary-by-place (range 2006 2011))
-        polygons-by-place (read-polygons-by-place)
-        join-by-place ($join [[:cityCode :statAreaCode]
-                              [:cityCode :statAreaCode]]
-                             polygons-by-place
-                             ($join [[:cityCode :statAreaCode]
-                                     [:cityCode :statAreaCode]]
-                                    summary-by-place
-                                    measures-by-place))
-        join-by-coords (sort-colnames
-                        (add-coords-to-place-dataset join-by-place))]
-    join-by-coords))
+  (binding [*print-length* nil *print-level* nil]
+    (let [measures-by-place (get-standard-measures-by-place)
+          summary-by-place (get-sales-summary-by-place (range 2006 2011))
+          polygons-by-place (read-polygons-by-place)
+          join-by-place ($join [[:cityCode :statAreaCode]
+                                [:cityCode :statAreaCode]]
+                               polygons-by-place
+                               measures-by-place
+                               ;; ($join [[:cityCode :statAreaCode]
+                               ;;         [:cityCode :statAreaCode]]
+                               ;;        summary-by-place
+                               ;;        measures-by-place)
+                               )
+          join-by-coords (sort-colnames
+                          (add-coords-to-place-dataset join-by-place))]
+      join-by-coords)))
 
 
 (def get-join-by-coords
@@ -886,7 +972,10 @@
       :join-by-coords))))
 
 (comment
-  (time (dim (get-join-by-coords))))
+  (time (dim (get-join-by-coords)))
+  (pprint (map place-desc-of-row
+               (filter (comp nil? :polygon-str)
+                       (:rows x)))))
 
 
 (defn add-changes-to-join-by-coords []
@@ -1817,19 +1906,6 @@
               (into (first val-and-freq) {:count (second val-and-freq)})))
        (sort-by :count)
        print-table))
-
-(def period-descs
-  {0 "ביישוב מלידה"
-   1 "עד 1947"
-   2 "1948-1954"
-   3 "1955-1964"
-   4 "1965-1974"
-   5 "1975-1984"
-   6 "1985-1989"
-   7 "1990-1994"
-   8 "1995-1999"
-   9 "2000-2004"
-   10 "2005 ויותר"})
    
 (defn draw [cityCode]
   (let [origin-by-period
@@ -1995,49 +2071,73 @@
 
 
 
-
+(def period-keys
+  (map #(keyword (str "p" %))
+       (range 1 11)))
 
 
 (defn compute-measures-for-json
   []
-  (let [data (filter-cols-and-rows
+  (let [cond-keys1 [:stayed :moved]
+        cond-keys2 (map (comp keyword period-descs)
+                        (range 1 11))
+        cond-keys (concat cond-keys1 ;cond-keys2
+                          )
+        group-keys [:edu012 :edu34 :edu567]
+        ;;[:occ3456 :occ01 :occ2]
+        gk1 (first group-keys)
+        gk2 (second group-keys)
+        gk3 (last group-keys)
+        ;;[:income1 :income2 :income3]
+        data (filter-cols-and-rows
               (fn [row] (and (:mean-x row)
                             (:mean-y row)))
-              (compute-data-with-clustering))
+              (filter-all-nonnil       ;-and-nonNaN
+               (compute-join-by-coords))   ;(compute-data-with-clustering)
+              )
         extended-data-rows
         (for [row (:rows data)]
           (let [sums
-                {:stayed
-                 {:income1 (:income1-sum-given-stayed row)
-                  :income2 (:income2-sum-given-stayed row)
-                  :income3 (:income3-sum-given-stayed row)
-                  ;; :ashkenaz (:ashkenaz-sum-given-stayed row)
-                  ;; :mizrach (:mizrach-sum-given-stayed row)
-                  ;; :aliyah (:aliyah-sum-given-stayed row)
-                  ;; :Arab (:Arab-sum-given-stayed row)
-                  ;; :local (:local-sum-given-stayed row)
-                  }
-                 :moved
-                 {:income1 (:income1-sum-given-moved row)
-                  :income2 (:income2-sum-given-moved row)
-                  :income3 (:income3-sum-given-moved row)
-                  ;; :ashkenaz (:ashkenaz-sum-given-moved row)
-                  ;; :mizrach (:mizrach-sum-given-moved row)
-                  ;; :aliyah (:aliyah-sum-given-moved row)
-                  ;; :Arab (:Arab-sum-given-moved row)
-                  ;; :local (:local-sum-given-moved row)
-                  }}
-                contingency-tables
-                {:stayed (into (:stayed sums)
-                               {
-                                ;; :other (- (:num-stayed row)
-                                ;;           (sum (vals (:stayed sums))))
-                                })
-                 :moved (into (:moved sums)
-                              {
-                               ;; :other (- (:num-moved row)
-                               ;;           (sum (vals (:moved sums))))
-                               })}
+                (into {}
+                      (for [cond-key cond-keys]
+                           {cond-key
+                            (into {}
+                                  (for [group-key group-keys]
+                                    {group-key
+                                     ((concat-keywords group-key
+                                                       :sum-given
+                                                       cond-key) row)}))}))
+                ;; {:stayed
+                ;;  {;; :income1 (:income1-sum-given-stayed row)
+                ;;   ;; :income2 (:income2-sum-given-stayed row)
+                ;;   ;; :income3 (:income3-sum-given-stayed row)
+                ;;   :ashkenaz (:ashkenaz-sum-given-stayed row)
+                ;;   :mizrach (:mizrach-sum-given-stayed row)
+                ;;   :aliyah (:aliyah-sum-given-stayed row)
+                ;;   ;; :Arab (:Arab-sum-given-stayed row)
+                ;;   ;; :local (:local-sum-given-stayed row)
+                ;;   }
+                ;;  :moved
+                ;;  {;; :income1 (:income1-sum-given-moved row)
+                ;;   ;; :income2 (:income2-sum-given-moved row)
+                ;;   ;; :income3 (:income3-sum-given-moved row)
+                ;;   :ashkenaz (:ashkenaz-sum-given-moved row)
+                ;;   :mizrach (:mizrach-sum-given-moved row)
+                ;;   :aliyah (:aliyah-sum-given-moved row)
+                ;;   ;; :Arab (:Arab-sum-given-moved row)
+                ;;   ;; :local (:local-sum-given-moved row)
+                ;;   }}
+                contingency-tables sums
+                ;; {:stayed (into (:stayed sums)
+                ;;                {
+                ;;                 ;; :other (- (:num-stayed row)
+                ;;                 ;;           (sum (vals (:stayed sums))))
+                ;;                 })
+                ;;  :moved (into (:moved sums)
+                ;;               {
+                ;;                ;; :other (- (:num-moved row)
+                ;;                ;;           (sum (vals (:moved sums))))
+                ;;                })}
                 counts
                 {:stayed (into (:stayed contingency-tables)
                                {:total (:num-stayed row)
@@ -2047,45 +2147,81 @@
                                 :0 0})}
                 groups (sort (keys (:stayed contingency-tables)))
                 lr1r3r (try (log
-                           (/ (/ (:income1 (:moved contingency-tables))
-                                 (:income1 (:stayed contingency-tables)))
-                              (/ (:income3 (:moved contingency-tables))
-                                 (:income3 (:stayed contingency-tables)))))
+                             (/ (/ (gk1 (:moved contingency-tables))
+                                 (gk1 (:stayed contingency-tables)))
+                              (/ (gk3 (:moved contingency-tables))
+                                 (gk3 (:stayed contingency-tables)))))
                           (catch Exception e Double/NaN))
+                lr1r2r (try (log
+                             (/ (/ (gk1 (:moved contingency-tables))
+                                   (gk1 (:stayed contingency-tables)))
+                                (/ (gk2 (:moved contingency-tables))
+                                   (gk2 (:stayed contingency-tables)))))
+                            (catch Exception e Double/NaN))
                 chisq-val (chi-square-comparison
                            (for [g groups] ((:stayed contingency-tables) g))
                            (for [g groups] ((:moved contingency-tables) g)))]
             (into row
-                  {:polygon (read-string (:polygon row))
+                  {:polygon (read-polygon-from-str
+                             (:polygon-str row))
                    :desc
                    (place-desc-of-row row)
-                   :chisq-val
+                   :chisqval
                    (if (Double/isNaN chisq-val)
                      -1
                      chisq-val)
-                   :lr1r3r lr1r3r
+                   :lr1r2r lr1r2r
                    :plotting {
+                              :lr1r2rstr (format "%04f" lr1r2r)
                               :lr1r3rstr (format "%04f" lr1r3r)
                               :color
-                              {:label (["#000" "#900" "#090"
-                                        "#009" "#099" "#909"
-                                        "#990" "#999"]
-                                         (int (:label row)))
-                               :smooth (rgb-to-color
-                                        (:income1-mean-given-all row)
-                                        (:income2-mean-given-all row)
-                                        (:income3-mean-given-all row))}
+                              (into {:chisq (if (< chisq-val 6)
+                                              "#c0a"
+                                              (if (neg? lr1r3r)
+                                                "#ac0"
+                                                (if (pos? lr1r3r)
+                                                  "#0ac"
+                                                  "#c0a")))
+                                     :lr1lr3r (probability-to-color
+                                               (* 0.5
+                                                  (+ 1
+                                                     (java.lang.Math/tanh lr1r3r))))}
+                                    (concat
+                                     ;; (for [cond-key cond-keys2]
+                                     ;;   {(concat-keywords :origin cond-key)
+                                     ;;    (rgb-to-color
+                                     ;;     ((concat-keywords :mizrach-mean-given cond-key) row)
+                                     ;;     0 ;;((concat-keywords :aliyah-mean-given cond-key) row)
+                                     ;;     ((concat-keywords :ashkenaz-mean-given cond-key) row))})
+                                     (for [cond-key cond-keys]
+                                       {(concat-keywords :edu cond-key)
+                                        (rgb-to-color
+                                         ((concat-keywords gk1 :mean-given cond-key) row)
+                                         0 ;((concat-keywords gk2 :mean-given cond-key) row)
+                                         ((concat-keywords gk3 :mean-given cond-key) row)
+                                         )})
+                                     ;; (for [cond-key cond-keys]
+                                     ;;   {(concat-keywords :occ cond-key)
+                                     ;;    (rgb-to-color
+                                     ;;     ((concat-keywords gk1 :mean-given cond-key) row)
+                                     ;;     ((concat-keywords gk2 :mean-given cond-key) row)
+                                     ;;     0)})
+                                     ;; (for [cond-key cond-keys]
+                                     ;;   {(concat-keywords :income cond-key)
+                                     ;;    (rgb-to-color
+                                     ;;     ((concat-keywords :income1-mean-given cond-key) row)
+                                     ;;     0
+                                     ;;     ((concat-keywords :income2-mean-given cond-key) row))})
+                                     ))
+                              ;; { ;; :label (["#000" "#900" "#090"
+                              ;;  ;;          "#009" "#099" "#909"
+                              ;;  ;;          "#990" "#999"]
+                              ;;  ;;           (int (:label row)))
+                              ;;  }
                               ;; (rgb-to-color
                               ;;  (:income1-mean-given-all row)
                               ;;  (:income2-mean-given-all row)
                               ;;  (:income3-mean-given-all row))
-                              ;; (if (< chisq-val 8)
-                              ;;   "#c0a"
-                              ;;   (if (neg? lr1r3r)
-                              ;;     "#ac0"
-                              ;;     (if (pos? lr1r3r)
-                              ;;       "#0ac"
-                              ;;       "#c0a")))
                               ;; (probability-to-color
                               ;;  (java.lang.Math/tanh lr1r3r))
                               ;; (if (< 10 chisq-val)
@@ -2108,31 +2244,44 @@
                                           :income1 "red"
                                           :income2 "green"
                                           :income3 "blue"
-                                          :mizrach "brown"
-                                          :ashkenaz "white"
-                                          :aliyah "blue"
+                                          :edu012 "red"
+                                          :edu34 "green"
+                                          :edu567 "blue"
+                                          :occ3456 "red"
+                                          :occ01 "green"
+                                          :occ2 "blue"
+                                          :mizrach "red"
+                                          :ashkenaz "blue"
+                                          :aliyah "green"
                                           :Arab "orange"
                                           :total "grey"
                                           :0 "grey"
                                           "black")
                                  :name g})}})))
         ]
-    (map #(select-keys % [:polygon
-                          :mean-x :mean-y
-                          :statAreaCode :cityCode
-                          :num-moved
-                          ;; :aliyah-sum-given-moved
-                          ;; :mizrach-sum-given-moved
-                          ;; :ashkenaz-sum-given-moved
-                          :num-stayed
-                          ;; :aliyah-sum-given-stayed
-                          ;; :mizrach-sum-given-stayed
-                          ;; :ashkenaz-sum-given-stayed
-                          :desc
-                          :chisq-val
-                          :lr1r3r
-                          :plotting])
-         extended-data-rows)))
+    {:metadata {:colorkeys (-> extended-data-rows
+                               first :plotting :color keys sort)}
+     :records (map #(select-keys % (into [:polygon
+                                          :mean-x :mean-y
+                                          :statAreaCode :cityCode
+                                          :num-moved
+                                          ;; :aliyah-sum-given-moved
+                                          ;; :mizrach-sum-given-moved
+                                          ;; :ashkenaz-sum-given-moved
+                                          :num-stayed
+                                          ;; :aliyah-sum-given-stayed
+                                          ;; :mizrach-sum-given-stayed
+                                          ;; :ashkenaz-sum-given-stayed
+                                          :desc
+                                          :chisqval
+                                          :lr1r2rstr
+                                          :lr1r3rstr
+                                          :plotting]
+                                         (apply concat
+                                                (for [cond-key cond-keys]
+                                                  (map (fn [group-key] (concat-keywords group-key :mean-given cond-key))
+                                                       group-keys)))))
+                   extended-data-rows)}))
 
 
 (defn write-measures-as-cljs
@@ -2224,3 +2373,32 @@
        (#(save % "/home/we/projects/mmi/client/my-scatter/scatter.csv"))))
 
 
+
+(comment
+  (->> (compute-measures-for-json)
+       (map (fn [row]
+              
+              ))
+       ;; (filter identity)
+       ;; to-dataset
+       ;; filter-all-nonnil-and-nonNaN-and-nonInf
+       ;;($where {:place {:$ne ":other"}})
+       ;(#(save %
+       ;"/home/we/projects/mmi/client/my-scatter/scatter.csv"))
+       ))
+
+
+(def get-records-as-dataset
+  (memoize (fn []
+             (to-dataset (:records (compute-measures-for-json))))))
+
+(comment
+  (view
+   (with-data (get-records-as-dataset)
+     (add-points (scatter-plot :edu567-mean-given-stayed :edu012-mean-given-stayed)
+                 ($ :edu567-mean-given-moved)
+                 ($ :edu012-mean-given-moved))))
+  (view
+   (with-data (get-records-as-dataset)
+     (scatter-plot :edu567-mean-given-stayed :edu012-mean-given-stayed
+                   :group-by :cityCode))))

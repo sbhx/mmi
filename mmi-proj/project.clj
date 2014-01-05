@@ -45,5 +45,5 @@
                  [net.sf.jung/jung-visualization "2.0.1"]
                  ]
   ;;:main mmi-proj.puf
-  :jvm-opts ["-Xmx6g"] )
+  :jvm-opts ["-Xmx14g"] )
 
